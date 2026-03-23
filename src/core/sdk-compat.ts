@@ -8,10 +8,10 @@
 
 /**
  * Wrap an object as an AgentToolResult-compatible text result.
- * Uses `'text' as const` to satisfy the stricter literal type requirement.
+ * Returns the { content, details } shape expected by pi-agent-core.
  */
-export function jsonResult(obj: unknown): { type: 'text'; text: string } {
-  return { type: 'text' as const, text: JSON.stringify(obj) };
+export function jsonResult(obj: unknown): { content: Array<{ type: 'text'; text: string }>; details: unknown } {
+  return { content: [{ type: 'text' as const, text: JSON.stringify(obj) }], details: obj };
 }
 
 /**

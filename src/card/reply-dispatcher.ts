@@ -14,8 +14,8 @@
 import {
   createReplyPrefixContext,
   logTypingFailure,
-  type ReplyPayload,
-} from 'openclaw/plugin-sdk';
+} from 'openclaw/plugin-sdk/feishu';
+import type { ReplyPayload } from 'openclaw/plugin-sdk';
 import { createTypingCallbacks } from 'openclaw/plugin-sdk/channel-runtime';
 import { createAccountScopedConfig, getLarkAccount } from '../core/accounts';
 import { resolveFooterConfig } from '../core/footer-config';

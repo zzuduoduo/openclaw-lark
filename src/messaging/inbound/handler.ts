@@ -14,11 +14,12 @@
  *   7. Agent dispatch        → dispatch.ts
  */
 
-import type { ClawdbotConfig, RuntimeEnv, HistoryEntry } from 'openclaw/plugin-sdk';
+import type { ClawdbotConfig, RuntimeEnv } from 'openclaw/plugin-sdk';
+import type { HistoryEntry } from 'openclaw/plugin-sdk/feishu';
 import {
   recordPendingHistoryEntryIfEnabled,
   DEFAULT_GROUP_HISTORY_LIMIT,
-} from 'openclaw/plugin-sdk';
+} from 'openclaw/plugin-sdk/feishu';
 import { resolveSenderCommandAuthorization } from 'openclaw/plugin-sdk/zalouser';
 import { isNormalizedSenderAllowed } from 'openclaw/plugin-sdk/allow-from';
 import type { FeishuMessageEvent } from '../types';

@@ -9,8 +9,10 @@
  * start the inbound event gateway.
  */
 
-import type { ChannelMeta, ChannelPlugin, ChannelThreadingToolContext, ClawdbotConfig } from 'openclaw/plugin-sdk';
-import { DEFAULT_ACCOUNT_ID, PAIRING_APPROVED_MESSAGE } from 'openclaw/plugin-sdk';
+import type { ChannelPlugin, ClawdbotConfig } from 'openclaw/plugin-sdk';
+import type { ChannelMeta } from 'openclaw/plugin-sdk/feishu';
+import type { ChannelThreadingToolContext } from 'openclaw/plugin-sdk/channel-contract';
+import { DEFAULT_ACCOUNT_ID, PAIRING_APPROVED_MESSAGE, feishuSetupWizard, feishuSetupAdapter } from 'openclaw/plugin-sdk/feishu';
 import type { LarkAccount } from '../core/types';
 import { getLarkAccount, getLarkAccountIds, getDefaultLarkAccountId } from '../core/accounts';
 import {
@@ -19,7 +21,6 @@ import {
   listFeishuDirectoryPeersLive,
   listFeishuDirectoryGroupsLive,
 } from './directory';
-import { feishuOnboardingAdapter } from './onboarding';
 import { feishuOutbound } from '../messaging/outbound/outbound';
 import { feishuMessageActions } from '../messaging/outbound/actions';
 import { resolveFeishuGroupToolPolicy } from '../messaging/inbound/policy';
@@ -212,18 +213,8 @@ export const feishuPlugin: ChannelPlugin<LarkAccount> = {
   // Setup
   // -------------------------------------------------------------------------
 
-  setup: {
-    resolveAccountId: () => DEFAULT_ACCOUNT_ID,
-    applyAccountConfig: ({ cfg, accountId }) => {
-      return applyAccountConfig(cfg, accountId, { enabled: true });
-    },
-  },
-
-  // -------------------------------------------------------------------------
-  // Onboarding
-  // -------------------------------------------------------------------------
-
-  onboarding: feishuOnboardingAdapter,
+  setup: feishuSetupAdapter,
+  setupWizard: feishuSetupWizard,
 
   // -------------------------------------------------------------------------
   // Messaging

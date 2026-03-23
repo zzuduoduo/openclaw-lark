@@ -1,15 +1,16 @@
 {
   "name": "@larksuite/openclaw-lark",
-  "version": "2026.3.18-beta.9",
+  "version": "2026.3.18-beta.18",
   "description": "OpenClaw Lark/Feishu channel plugin",
   "type": "module",
   "bin": {
     "openclaw-lark": "bin/openclaw-lark.js"
   },
-  "main": "dist/index.mjs",
+  "main": "index.js",
   "files": [
     "bin/",
-    "dist/",
+    "index.js",
+    "index.d.ts",
     "skills/",
     "openclaw.plugin.json",
     "README.md",
@@ -27,6 +28,7 @@
     "@larksuiteoapi/node-sdk": "^1.59.0",
     "@sinclair/typebox": "0.34.48",
     "image-size": "^2.0.2",
+    "openclaw": "^2026.3.13",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -40,14 +42,13 @@
     "execa": "^9.6.0",
     "fs-extra": "^11.3.2",
     "minimist": "^1.2.8",
-    "openclaw": "^2026.3.13",
     "tsdown": "^0.21.4",
     "prettier": "^3.8.1",
     "typescript": "^5.9.3"
   },
   "openclaw": {
     "extensions": [
-      "./dist/index.mjs"
+      "./index.js"
     ],
     "channel": {
       "id": "openclaw-lark",

@@ -3,8 +3,8 @@ export default {
   format: 'esm',
   target: 'node22',
   platform: 'node',
-  clean: true,
-  outDir: 'dist',
+  clean: false,
+  outDir: '.',
   dts: true,
   deps: {
     neverBundle: [

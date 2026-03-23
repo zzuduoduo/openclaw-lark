@@ -5,7 +5,8 @@
  * Channel type definitions for the Lark/Feishu channel plugin.
  */
 
-import type { ClawdbotConfig, RuntimeEnv, HistoryEntry } from 'openclaw/plugin-sdk';
+import type { ClawdbotConfig, RuntimeEnv } from 'openclaw/plugin-sdk';
+import type { HistoryEntry } from 'openclaw/plugin-sdk/feishu';
 import type { LarkClient } from '../core/lark-client';
 import type { MessageDedup } from '../messaging/inbound/dedup';
 
