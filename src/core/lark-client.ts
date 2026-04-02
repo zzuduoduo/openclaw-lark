@@ -15,6 +15,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import * as Lark from '@larksuiteoapi/node-sdk';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 import type { ClawdbotConfig, PluginRuntime } from 'openclaw/plugin-sdk';
 import type { MessageDedup } from '../messaging/inbound/dedup';
@@ -76,6 +77,45 @@ const BRAND_TO_DOMAIN: Record<string, Lark.Domain> = {
 /** Map a `LarkBrand` to the SDK `domain` parameter. */
 function resolveBrand(brand: LarkBrand | undefined): Lark.Domain | string {
   return BRAND_TO_DOMAIN[brand ?? 'feishu'] ?? brand!.replace(/\/+$/, '');
+}
+
+// ---------------------------------------------------------------------------
+// Proxy support via environment variables
+// ---------------------------------------------------------------------------
+
+function getProxyUrl(): string | undefined {
+  return process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+}
+
+function createProxyAgent(): HttpsProxyAgent<string> | undefined {
+  const proxyUrl = getProxyUrl();
+  return proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
+}
+
+function createTimeoutHttpInstance(agent?: HttpsProxyAgent<string>): Lark.HttpInstance {
+  const base = Lark.defaultHttpInstance as unknown as Lark.HttpInstance;
+
+  function injectAgent<D>(opts?: Lark.HttpRequestOptions<D>): Lark.HttpRequestOptions<D> {
+    const injected = { timeout: 30000, ...opts } as any;
+    if (agent) {
+      injected.httpsAgent = agent;
+      injected.httpAgent = agent;
+      injected.proxy = false;
+      injected.env = {};
+    }
+    return injected;
+  }
+
+  return {
+    request: (opts) => base.request(injectAgent(opts)),
+    get: (url, opts) => base.get(url, injectAgent(opts)),
+    post: (url, data, opts) => base.post(url, data, injectAgent(opts)),
+    put: (url, data, opts) => base.put(url, data, injectAgent(opts)),
+    patch: (url, data, opts) => base.patch(url, data, injectAgent(opts)),
+    delete: (url, opts) => base.delete(url, injectAgent(opts)),
+    head: (url, opts) => base.head(url, injectAgent(opts)),
+    options: (url, opts) => base.options(url, injectAgent(opts)),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -251,11 +291,14 @@ export class LarkClient {
   get sdk(): Lark.Client {
     if (!this._sdk) {
       const { appId, appSecret } = this.requireCredentials();
+      const agent = createProxyAgent();
       this._sdk = new Lark.Client({
         appId,
         appSecret,
         appType: Lark.AppType.SelfBuild,
         domain: resolveBrand(this.account.brand),
+        httpInstance: createTimeoutHttpInstance(agent),
+        ...(agent ? { agent } : {}),
       });
     }
     return this._sdk;
@@ -357,6 +400,7 @@ export class LarkClient {
     dispatcher.register(handlers as any);
 
     const { appId, appSecret } = this.requireCredentials();
+    const agent = createProxyAgent();
     // Close any existing WSClient before creating a new one to prevent
     // orphaned connections when startWS is called multiple times.
     if (this._wsClient) {
@@ -374,6 +418,8 @@ export class LarkClient {
       appSecret,
       domain: resolveBrand(this.account.brand),
       loggerLevel: Lark.LoggerLevel.info,
+      httpInstance: createTimeoutHttpInstance(agent),
+      ...(agent ? { agent } : {}),
     });
 
     // SDK 的 handleEventData 只处理 type="event"，card action 回调是 type="card" 会被丢弃。

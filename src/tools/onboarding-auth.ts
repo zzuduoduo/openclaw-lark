@@ -58,17 +58,18 @@ export async function triggerOnboarding(params: {
   const { appId } = acct;
 
   // 1. 检查 userOpenId === 应用 owner（统一走 getAppOwnerFallback）
-  const ownerOpenId = await getAppOwnerFallback(acct, sdk);
-  if (!ownerOpenId) {
-    log.info(`app ${appId} has no owner info, skipping`);
-    return;
-  }
-  if (userOpenId !== ownerOpenId) {
-    log.info(`user ${userOpenId} is not app owner (${ownerOpenId}), skipping`);
-    return;
-  }
-
-  log.info(`user ${userOpenId} is app owner, starting OAuth`);
+  // [MODIFIED] 注释掉 owner-only 限制以支持多用户使用
+  // const ownerOpenId = await getAppOwnerFallback(acct, sdk);
+  // if (!ownerOpenId) {
+  //   log.info(`app ${appId} has no owner info, skipping`);
+  //   return;
+  // }
+  // if (userOpenId !== ownerOpenId) {
+  //   log.info(`user ${userOpenId} is not app owner (${ownerOpenId}), skipping`);
+  //   return;
+  // }
+  // log.info(`user ${userOpenId} is app owner, starting OAuth`);
+  log.info(`user ${userOpenId} starting OAuth`);
 
   // 3. 动态获取应用已开通的 user scope 列表
   let allUserScopes: string[];

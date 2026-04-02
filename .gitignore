@@ -16,10 +16,6 @@ src/tools/docs/
 .windsurf/
 
 
-# Internal documentation directories
-/doc/
-/docs/
-
 /**/package-lock.json
 /**/.DS_Store
 
