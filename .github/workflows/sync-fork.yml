@@ -1,0 +1,46 @@
+name: Sync Fork
+
+on:
+  schedule:
+    # 每天 UTC 时间 00:00 执行
+    - cron: '0 0 * * *'
+  workflow_dispatch:  # 支持手动触发
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Sync with Upstream
+        run: |
+          git remote add upstream https://github.com/larksuite/openclaw-lark.git
+          git fetch upstream
+          git checkout main
+          git merge upstream/main --no-edit
+          git push origin main
+
+      - name: Create Issue if Sync Fails
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '❌ Fork 同步失败',
+              body: '⚠️ Fork 与上游仓库 larksuite/openclaw-lark 的同步失败。\n\n请检查是否存在合并冲突或其他问题。\n\n[查看 Workflow 日志](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})'
+            })
