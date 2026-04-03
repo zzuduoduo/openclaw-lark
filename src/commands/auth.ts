@@ -139,15 +139,14 @@ async function executeFeishuAuth(config: OpenClawConfig): Promise<AuthResult> {
   }
 
   // Owner 检查（fail-close: 授权命令安全优先）
-  // [MODIFIED] 注释掉 owner-only 限制以支持多用户使用
-  // try {
-  //   await assertOwnerAccessStrict(acct, sdk, senderOpenId);
-  // } catch (err) {
-  //   if (err instanceof OwnerAccessDeniedError) {
-  //     return { kind: 'owner_only' };
-  //   }
-  //   throw err;
-  // }
+  try {
+    await assertOwnerAccessStrict(acct, sdk, senderOpenId);
+  } catch (err) {
+    if (err instanceof OwnerAccessDeniedError) {
+      return { kind: 'owner_only' };
+    }
+    throw err;
+  }
 
   // 预检：是否还有未授权的 scope
   let appScopes: string[];

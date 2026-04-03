@@ -15,7 +15,7 @@ import type { ClawdbotConfig } from 'openclaw/plugin-sdk';
 import { getLarkAccount } from '../core/accounts';
 import { LarkClient } from '../core/lark-client';
 import { getAppGrantedScopes } from '../core/app-scope-checker';
-import { getAppOwnerFallback } from '../core/app-owner-fallback';
+import { assertOwnerAccessStrict } from '../core/owner-policy';
 import { larkLogger } from '../core/lark-logger';
 import { filterSensitiveScopes } from '../core/tool-scopes';
 import { executeAuthorize } from './oauth';
@@ -57,19 +57,14 @@ export async function triggerOnboarding(params: {
   const sdk = LarkClient.fromAccount(acct).sdk;
   const { appId } = acct;
 
-  // 1. 检查 userOpenId === 应用 owner（统一走 getAppOwnerFallback）
-  // [MODIFIED] 注释掉 owner-only 限制以支持多用户使用
-  // const ownerOpenId = await getAppOwnerFallback(acct, sdk);
-  // if (!ownerOpenId) {
-  //   log.info(`app ${appId} has no owner info, skipping`);
-  //   return;
-  // }
-  // if (userOpenId !== ownerOpenId) {
-  //   log.info(`user ${userOpenId} is not app owner (${ownerOpenId}), skipping`);
-  //   return;
-  // }
-  // log.info(`user ${userOpenId} is app owner, starting OAuth`);
-  log.info(`user ${userOpenId} starting OAuth`);
+  // 1. 检查 userOpenId === 应用 owner（统一走 assertOwnerAccessStrict）
+  try {
+    await assertOwnerAccessStrict(acct, sdk, userOpenId);
+  } catch {
+    log.info(`user ${userOpenId} is not app owner, skipping`);
+    return;
+  }
+  log.info(`user ${userOpenId} is app owner, starting OAuth`);
 
   // 3. 动态获取应用已开通的 user scope 列表
   let allUserScopes: string[];

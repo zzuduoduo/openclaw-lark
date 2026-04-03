@@ -331,8 +331,7 @@ export class ToolClient {
     }
 
     // Owner 检查：非 owner 用户直接拒绝（从 uat-client.ts 迁移至此）
-    // [MODIFIED] 注释掉 owner-only 限制以支持多用户使用
-    // await assertOwnerAccessStrict(this.account, this.sdk, userOpenId);
+    await assertOwnerAccessStrict(this.account, this.sdk, userOpenId);
 
     // 预检：是否有已存储的 token
     const stored = await getStoredToken(this.account.appId, userOpenId);
