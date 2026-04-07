@@ -12,6 +12,7 @@
 import type { OpenClawPluginApi } from 'openclaw/plugin-sdk';
 import { Type } from '@sinclair/typebox';
 import { StringEnum, assertLarkOk, createToolContext, handleInvokeErrorWithAutoAuth, json, registerTool } from '../helpers';
+import { getTicket } from '../../../core/lark-ticket';
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -59,15 +60,19 @@ export function registerGetUserTool(api: OpenClawPluginApi): void {
         try {
           const client = toolClient();
 
-          // 模式 1: 获取当前用户自己的信息
+          // 模式 1: 获取当前消息发送者的信息（从 LarkTicket 获取 senderOpenId）
           if (!p.user_id) {
-            log.info('get_user: fetching current user info');
+            log.info('get_user: fetching current user info via ticket');
 
             try {
+              const ticket = getTicket();
               const res = await client.invoke(
                 'feishu_get_user.default',
                 (sdk, opts) => sdk.authen.userInfo.get({}, opts),
-                { as: 'user' },
+                {
+                  as: 'user',
+                  userOpenId: ticket?.senderOpenId,
+                },
               );
               assertLarkOk(res);
 
