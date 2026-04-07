@@ -7,7 +7,8 @@ export default defineConfig({
   platform: 'node',
   clean: true,
   outDir: 'dist',
-  dts: true,
+  // 禁用 .d.mts 类型定义生成（插件不需要导出类型给外部使用，减少构建时间）
+  dts: false,
   deps: {
     neverBundle: [
       /^openclaw(\/.*)?$/,
