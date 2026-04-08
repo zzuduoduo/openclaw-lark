@@ -30,7 +30,19 @@ export interface LarkTicket {
 // Storage
 // ---------------------------------------------------------------------------
 
-const store = new AsyncLocalStorage<LarkTicket>();
+const TICKET_STORE_KEY = "__orange_openclaw_lark_ticket_store__";
+const TICKET_API_KEY = "__orange_openclaw_lark_ticket_api__";
+
+const ticketGlobal = globalThis as typeof globalThis & {
+  [TICKET_STORE_KEY]?: AsyncLocalStorage<LarkTicket>;
+  [TICKET_API_KEY]?: {
+    withTicket: typeof withTicket;
+    getTicket: typeof getTicket;
+    ticketElapsed: typeof ticketElapsed;
+  };
+};
+
+const store = ticketGlobal[TICKET_STORE_KEY] ?? (ticketGlobal[TICKET_STORE_KEY] = new AsyncLocalStorage<LarkTicket>());
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -54,3 +66,9 @@ export function ticketElapsed(): number {
   const t = store.getStore();
   return t ? Date.now() - t.startTime : 0;
 }
+
+ticketGlobal[TICKET_API_KEY] = {
+  withTicket,
+  getTicket,
+  ticketElapsed,
+};
