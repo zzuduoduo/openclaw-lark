@@ -116,7 +116,7 @@ export async function handleMessageEvent(ctx: MonitorContext, data: unknown): Pr
               chatId,
               accountId,
               startTime: Date.now(),
-              senderOpenId: event.sender?.sender_id?.open_id || '',
+              senderOpenId: event.sender?.sender_id?.open_id || undefined,
               chatType: (event.message?.chat_type as 'p2p' | 'group') || undefined,
               threadId,
             },
