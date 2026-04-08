@@ -32,6 +32,7 @@ import { formatLarkError } from '../core/api-error';
 import { pollDeviceToken, requestDeviceAuthorization } from '../core/device-flow';
 import { type StoredUAToken, getStoredToken, setStoredToken, tokenStatus } from '../core/token-store';
 import { revokeUAT } from '../core/uat-client';
+import { feishuFetch } from '../core/feishu-fetch';
 import { createCardEntity, sendCardByCardId, updateCardKitCardForAuth } from '../card/cardkit';
 import { dispatchSyntheticTextMessage } from '../messaging/inbound/synthetic-message';
 import { buildAuthCard, buildAuthFailedCard, buildAuthIdentityMismatchCard, buildAuthSuccessCard } from './oauth-cards';
@@ -103,7 +104,7 @@ async function verifyTokenIdentity(
   const url = `${domain}/open-apis/authen/v1/user_info`;
 
   try {
-    const res = await fetch(url, {
+    const res = await feishuFetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const data = (await res.json()) as {
