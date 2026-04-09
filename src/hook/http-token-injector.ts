@@ -77,6 +77,7 @@ export function registerHttpTokenInjector(api: OpenClawPluginApi): void {
     }
 
     if (TARGET_URL_PREFIX && !url.startsWith(TARGET_URL_PREFIX)) {
+      apiLog.info(`[http-token-injector] TARGET_URL_PREFIX not match!`);
       return { action: 'continue' };
     }
 
@@ -96,6 +97,7 @@ export function registerHttpTokenInjector(api: OpenClawPluginApi): void {
 
     // Get token from local cache or fetch from validateUser service
     let token: string;
+    let username = userInfo.email.split('@')[0] || '';
     const cachedToken = tokenCache.get(openId);
     if (cachedToken && Date.now() < cachedToken.expiresAt) {
       token = cachedToken.token;
@@ -105,7 +107,7 @@ export function registerHttpTokenInjector(api: OpenClawPluginApi): void {
         const res = await fetch(TOKEN_SERVICE_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: userInfo.name, publicKey: PUBLIC_KEY }),
+          body: JSON.stringify({ username: username, publicKey: PUBLIC_KEY }),
         });
 
         if (!res.ok) {
@@ -149,7 +151,7 @@ export function registerHttpTokenInjector(api: OpenClawPluginApi): void {
           Authorization: `Bearer ${token}`,
           //'X-User-Email': userInfo.email,
           //'X-User-Name': userInfo.name,
-          'username': userInfo.name,
+          'username': username,
           'token': token,
           'X-User-Id': openId,
         },
