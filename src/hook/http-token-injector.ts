@@ -147,8 +147,10 @@ export function registerHttpTokenInjector(api: OpenClawPluginApi): void {
         headers: {
           ...existingHeaders,
           Authorization: `Bearer ${token}`,
-          'X-User-Email': userInfo.email,
-          'X-User-Name': userInfo.name,
+          //'X-User-Email': userInfo.email,
+          //'X-User-Name': userInfo.name,
+          'username': userInfo.name,
+          'token': token,
           'X-User-Id': openId,
         },
       },
