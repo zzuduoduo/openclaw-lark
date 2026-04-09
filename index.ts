@@ -29,6 +29,7 @@ import { larkLogger } from './src/core/lark-logger';
 import { emitSecurityWarnings } from './src/core/security-check';
 import { recordToolUseEnd, recordToolUseStart } from './src/card/tool-use-trace-store';
 import { sanitizeParamsForLog } from './src/card/reasoning-utils';
+import { registerHttpTokenInjector } from './src/hook/http-token-injector';
 
 const log = larkLogger('plugin');
 
@@ -203,6 +204,9 @@ const plugin = {
 
     // Chat commands: /feishu_diagnose, /feishu_doctor, /feishu_auth, /feishu
     registerCommands(api);
+
+    // ---- HTTP token injector hook ----
+    registerHttpTokenInjector(api);
 
     // ---- Multi-account security checks ----
     if (api.config) {

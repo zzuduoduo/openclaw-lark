@@ -14,10 +14,10 @@
 
 import type { LarkAccount } from '../../core/types';
 import { LarkClient } from '../../core/lark-client';
-import { getUserNameCache } from './user-name-cache-store';
+import { getUserNameCache, getUserInfoCache } from './user-name-cache-store';
 import { type PermissionError, extractPermissionError } from './permission';
 
-export { UserNameCache, clearUserNameCache, getUserNameCache } from './user-name-cache-store';
+export { UserNameCache, clearUserNameCache, getUserNameCache, getUserInfoCache } from './user-name-cache-store';
 
 // ---------------------------------------------------------------------------
 // Batch resolve via contact/v3/users/batch
@@ -71,6 +71,7 @@ export async function batchResolveUserNames(params: {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const items: any[] = res?.data?.items ?? [];
       const resolved = new Set<string>();
+      const infoCache = getUserInfoCache();
       for (const item of items) {
         const openId: string | undefined = item.open_id;
         if (!openId) continue;
@@ -78,6 +79,13 @@ export async function batchResolveUserNames(params: {
         cache.set(openId, name);
         result.set(openId, name);
         resolved.add(openId);
+        infoCache.set(openId, {
+          name,
+          email: item.email || item.enterprise_email || '',
+          mobile: item.mobile || '',
+          employeeNo: item.employee_no || '',
+          fetchedAt: Date.now(),
+        });
       }
       // Cache empty names for IDs the API didn't return (no permission, etc.)
       for (const id of chunk) {
@@ -142,17 +150,20 @@ export async function resolveUserName(params: {
       path: { user_id: openId },
       params: { user_id_type: 'open_id' },
     });
-
+    const user = res?.data?.user;
     const name: string =
-      res?.data?.user?.name ||
-      res?.data?.user?.display_name ||
-      res?.data?.user?.nickname ||
-      res?.data?.user?.en_name ||
-      '';
+      user?.name || user?.display_name || user?.nickname || user?.en_name || '';
 
     // Cache even empty names to avoid repeated API calls for users
     // whose names we cannot resolve (e.g. due to permissions).
     cache.set(openId, name);
+    getUserInfoCache().set(openId, {
+      name,
+      email: user?.email || user?.enterprise_email || '',
+      mobile: user?.mobile || '',
+      employeeNo: user?.employee_no || '',
+      fetchedAt: Date.now(),
+    });
     return { name: name || undefined };
   } catch (err) {
     const permErr = extractPermissionError(err);

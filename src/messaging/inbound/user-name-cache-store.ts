@@ -105,3 +105,29 @@ export function clearUserNameCache(accountId?: string): void {
     registry.clear();
   }
 }
+
+// ---------------------------------------------------------------------------
+// Full user info cache — shared with other plugins via globalThis
+// ---------------------------------------------------------------------------
+
+export interface FeishuUserInfo {
+  name: string;
+  email: string;
+  mobile: string;
+  employeeNo: string;
+  fetchedAt: number;
+}
+
+const USER_INFO_CACHE_KEY = '__orange_feishu_user_info_cache__';
+
+const userInfoGlobal = globalThis as typeof globalThis & {
+  [USER_INFO_CACHE_KEY]?: Map<string, FeishuUserInfo>;
+};
+
+if (!userInfoGlobal[USER_INFO_CACHE_KEY]) {
+  userInfoGlobal[USER_INFO_CACHE_KEY] = new Map();
+}
+
+export function getUserInfoCache(): Map<string, FeishuUserInfo> {
+  return userInfoGlobal[USER_INFO_CACHE_KEY]!;
+}
