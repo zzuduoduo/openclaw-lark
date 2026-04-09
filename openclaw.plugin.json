@@ -5,29 +5,7 @@
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
-    "properties": {
-      "http_token_injector": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "token_service_url": {
-            "type": "string"
-          },
-          "public_key": {
-            "type": "string"
-          },
-          "token_ttl_ms": {
-            "type": "integer"
-          },
-          "user_cache_ttl_ms": {
-            "type": "integer"
-          },
-          "target_url_prefix": {
-            "type": "string"
-          }
-        }
-      }
-    }
+    "properties": {}
   },
   "channelConfigs": {
     "feishu": {

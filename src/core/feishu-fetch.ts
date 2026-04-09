@@ -9,8 +9,7 @@
  * environment variables.
  */
 
-import { HttpProxyAgent } from 'http-proxy-agent';
-import { HttpsProxyAgent } from 'https-proxy-agent';
+import { ProxyAgent } from 'undici';
 import { getUserAgent } from './version';
 
 /**
@@ -39,28 +38,19 @@ export function feishuFetch(url: string | URL | Request, init?: RequestInit): Pr
     'User-Agent': getUserAgent(),
   };
 
-  // Get the actual URL string for protocol detection
-  let urlString: string;
-  if (typeof url === 'string') {
-    urlString = url;
-  } else if (url instanceof URL) {
-    urlString = url.toString();
-  } else if (url instanceof Request) {
-    urlString = url.url;
-  } else {
-    urlString = String(url);
-  }
-
-  // Apply proxy agent if proxy URL is configured
+  // Apply proxy agent if proxy URL is configured.
+  // Node.js native fetch is undici-based; proxy support requires `dispatcher`,
+  // not the `agent` option used by node-fetch/axios.
   const proxyUrl = getProxyUrl();
-  const fetchInit: RequestInit & { agent?: any } = { ...init, headers };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fetchInit: any = { ...init, headers };
 
   if (proxyUrl) {
     try {
-      const isHttps = urlString.startsWith('https://');
-      fetchInit.agent = isHttps ? new HttpsProxyAgent(proxyUrl) : new HttpProxyAgent(proxyUrl);
+      // Node.js native fetch is undici-based; `dispatcher` (not `agent`) is the correct option.
+      // Cast to any to avoid Dispatcher type collision between undici package and @types/node.
+      fetchInit.dispatcher = new ProxyAgent(proxyUrl);
     } catch (err) {
-      // If proxy agent creation fails, log warning but continue without proxy
       console.warn(`[feishuFetch] Failed to create proxy agent: ${err}`);
     }
   }
