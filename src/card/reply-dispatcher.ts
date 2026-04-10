@@ -420,6 +420,8 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
             onReasoningStream: (payload: ReplyPayload) => controller.onReasoningStream(payload),
             onPartialReply: (payload: ReplyPayload) => controller.onPartialReply(payload),
             onToolStart: (payload: { name?: string; phase?: string }) => controller.onToolStart(payload),
+            onFinalTextOverride: (payload: ReplyPayload) => controller.onFinalTextOverride(payload),
+            shouldEmitToolStatus: () => toolUseDisplay.showToolUse,
           }
         : {}),
     },

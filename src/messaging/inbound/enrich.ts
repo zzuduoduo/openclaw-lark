@@ -36,7 +36,12 @@ import { buildFeishuMediaPayload, downloadResources } from './media-resolver';
 // ---------------------------------------------------------------------------
 
 /**
- * Resolve the sender display name and track permission errors.
+ * Resolve the sender display name (Phase 1) — NON-BLOCKING.
+ *
+ * **CRITICAL CHANGE**: Now returns immediately without awaiting API calls.
+ * - Cached names are returned synchronously
+ * - Cache misses trigger an async background refresh (fire-and-forget)
+ * - Prevents the 2+ second delay from Feishu Contact API calls
  *
  * This must run before the gate check because per-group sender
  * allowlists may match on senderName.
@@ -56,33 +61,68 @@ export async function resolveSenderInfo(params: {
     return { ctx };
   }
 
-  // Resolve sender display name (best-effort)
-  const senderResult = await resolveUserName({
-    account,
-    openId: ctx.senderId,
-    log,
-  });
-  if (senderResult.name) {
-    ctx = { ...ctx, senderName: senderResult.name };
-    log(`sender resolved: ${senderResult.name}`);
-  } else if (senderResult.permissionError) {
-    log(`sender resolve failed: permission error code=${senderResult.permissionError.code}`);
-  }
-
-  // Track permission errors (with cooldown)
-  let permissionError: PermissionError | undefined;
-  if (senderResult.permissionError) {
-    const appKey = account.appId ?? 'default';
-    const now = Date.now();
-    const lastNotified = permissionErrorNotifiedAt.get(appKey) ?? 0;
-
-    if (now - lastNotified > PERMISSION_ERROR_COOLDOWN_MS) {
-      permissionErrorNotifiedAt.set(appKey, now);
-      permissionError = senderResult.permissionError;
+  // Try cached name first (synchronous, fast)
+  let senderName: string | undefined;
+  const userNameCache = getUserNameCache(account.accountId);
+  if (userNameCache.has(ctx.senderId)) {
+    senderName = userNameCache.get(ctx.senderId);
+    if (senderName) {
+      ctx = { ...ctx, senderName };
+      log(`sender resolved (cached): ${senderName}`);
     }
+  } else {
+    // Cache miss: kick off async refresh in background (fire-and-forget)
+    // This prevents blocking on the API call (~2 seconds)
+    resolveUserNameAsync({
+      account,
+      openId: ctx.senderId,
+      log,
+    }).catch(() => {
+      // Silently ignore background errors
+    });
   }
+
+  // Note: permission errors are not returned from the critical path anymore.
+  // They will be caught by the background task and cached, so subsequent
+  // messages will benefit.
+  let permissionError: PermissionError | undefined;
 
   return { ctx, permissionError };
+}
+
+/**
+ * Async helper to refresh user name cache in the background.
+ * Does not block the caller — run in parallel with message processing.
+ */
+async function resolveUserNameAsync(params: {
+  account: LarkAccount;
+  openId: string;
+  log: (...args: unknown[]) => void;
+}): Promise<void> {
+  const { account, openId, log } = params;
+
+  try {
+    const senderResult = await resolveUserName({
+      account,
+      openId,
+      log,
+    });
+
+    if (senderResult.name) {
+      log(`sender resolved (async): ${senderResult.name}`);
+    } else if (senderResult.permissionError) {
+      log(`sender resolve failed (async): permission error code=${senderResult.permissionError.code}`);
+      // Track permission errors (with cooldown) for subsequent calls
+      const appKey = account.appId ?? 'default';
+      const now = Date.now();
+      const lastNotified = permissionErrorNotifiedAt.get(appKey) ?? 0;
+      if (now - lastNotified > PERMISSION_ERROR_COOLDOWN_MS) {
+        permissionErrorNotifiedAt.set(appKey, now);
+      }
+    }
+  } catch (err) {
+    log(`sender name async refresh failed: ${String(err)}`);
+  }
 }
 
 // ---------------------------------------------------------------------------

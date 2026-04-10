@@ -561,6 +561,13 @@ export class StreamingCardController {
     }
     const text = split.answerText ?? stripReasoningTags(rawText);
     log.debug('onPartialReply', { len: text.length });
+
+    // Ensure card is created immediately (shows "Thinking..." indicator during LLM TTFB),
+    // even before we have visible answer text. The NO_REPLY check below only guards
+    // content updates, not card creation.
+    await this.ensureCardCreated();
+    if (!this.shouldProceed('onPartialReply.postCreate')) return;
+
     if (!text) return;
 
     this.captureToolUseElapsed();
@@ -587,8 +594,6 @@ export class StreamingCardController {
       return;
     }
 
-    await this.ensureCardCreated();
-    if (!this.shouldProceed('onPartialReply.postCreate')) return;
     if (!this.cardKit.cardMessageId) return;
     await this.throttledCardUpdate();
   }
@@ -765,6 +770,15 @@ export class StreamingCardController {
       accumulatedTextLen: this.text.accumulatedText.length,
     });
     this.dispatchFullyComplete = true;
+  }
+
+  onFinalTextOverride(payload: ReplyPayload): void {
+    const rawText = payload.text ?? '';
+    if (!rawText) return;
+    const split = splitReasoningText(rawText);
+    const text = split.answerText ?? stripReasoningTags(rawText);
+    if (!text) return;
+    this.text.completedText = text;
   }
 
   async abortCard(): Promise<void> {

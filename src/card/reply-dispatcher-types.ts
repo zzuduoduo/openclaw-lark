@@ -105,10 +105,10 @@ export interface CardKitState {
  * - `BATCH_AFTER_GAP_MS`: Batching window after a long gap.
  */
 export const THROTTLE_CONSTANTS = {
-  CARDKIT_MS: 100,
+  CARDKIT_MS: 40,
   PATCH_MS: 1500,
-  LONG_GAP_THRESHOLD_MS: 2000,
-  BATCH_AFTER_GAP_MS: 300,
+  LONG_GAP_THRESHOLD_MS: 800,
+  BATCH_AFTER_GAP_MS: 80,
   REASONING_STATUS_MS: 1500,
 } as const;
 
