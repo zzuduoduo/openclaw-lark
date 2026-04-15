@@ -97,7 +97,7 @@ export function registerHttpTokenInjector(api: OpenClawPluginApi): void {
 
     // Get token from local cache or fetch from validateUser service
     let token: string;
-    let username = userInfo.email.split('@')[0] || '';
+    const username = userInfo.email.split('@')[0] || '';
     const cachedToken = tokenCache.get(openId);
     if (cachedToken && Date.now() < cachedToken.expiresAt) {
       token = cachedToken.token;

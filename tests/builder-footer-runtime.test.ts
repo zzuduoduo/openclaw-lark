@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { buildCardContent, compactNumber, formatFooterRuntimeSegments } from '../src/card/builder';
+import { buildCardContent, compactNumber, formatFooterRuntimeSegments, stripReasoningTags } from '../src/card/builder';
 import type { ToolUseDisplayStep } from '../src/card/tool-use-display';
 
 // ---------------------------------------------------------------------------
@@ -153,6 +153,45 @@ describe('buildCardContent – footer line joining', () => {
   it('renders no footer element when all footer flags are off', () => {
     const card = buildCardContent('complete', { text: 'hello' });
     expect(footerElements(card)).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildCardContent – reasoning panel
+// ---------------------------------------------------------------------------
+
+describe('buildCardContent – reasoning panel', () => {
+  function reasoningPanels(card: ReturnType<typeof buildCardContent>) {
+    return card.elements.filter((el) => el.tag === 'collapsible_panel' && JSON.stringify(el).includes('Thought'));
+  }
+
+  it('keeps prefixed reasoning out of visible answer text helpers', () => {
+    expect(stripReasoningTags('Reasoning:\n_thinking_\n_more_')).toBe('');
+  });
+
+  it('renders reasoning in a configurable collapsible panel', () => {
+    const card = buildCardContent('complete', {
+      text: 'final answer',
+      reasoningText: 'hidden thinking',
+      reasoningExpanded: true,
+    });
+
+    const panels = reasoningPanels(card);
+    expect(panels).toHaveLength(1);
+    expect(panels[0].expanded).toBe(true);
+    expect(JSON.stringify(panels[0])).toContain('hidden thinking');
+    expect(JSON.stringify(card.elements.at(-1))).toContain('final answer');
+  });
+
+  it('can hide reasoning completely', () => {
+    const card = buildCardContent('complete', {
+      text: 'final answer',
+      reasoningText: 'hidden thinking',
+      reasoningEnabled: false,
+    });
+
+    expect(reasoningPanels(card)).toHaveLength(0);
+    expect(JSON.stringify(card)).not.toContain('hidden thinking');
   });
 });
 

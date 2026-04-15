@@ -13,6 +13,7 @@ import type { OpenClawPluginApi } from 'openclaw/plugin-sdk';
 import { Type } from '@sinclair/typebox';
 import { StringEnum, assertLarkOk, createToolContext, handleInvokeErrorWithAutoAuth, json, registerTool } from '../helpers';
 import { getTicket } from '../../../core/lark-ticket';
+import { getUserInfoCache } from '../../../messaging/inbound/user-name-cache';
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -26,6 +27,8 @@ const GetUserSchema = Type.Object({
   ),
   user_id_type: Type.Optional(StringEnum(['open_id', 'union_id', 'user_id'])),
 });
+
+const GetUserCacheSchema = Type.Object({});
 
 // ---------------------------------------------------------------------------
 // Params type
@@ -152,4 +155,53 @@ export function registerGetUserTool(api: OpenClawPluginApi): void {
     { name: 'feishu_get_user' },
   );
 
+}
+
+export function registerGetUserCacheTool(api: OpenClawPluginApi): void {
+  if (!api.config) return;
+
+  const { log } = createToolContext(api, 'feishu_get_user_cache');
+
+  registerTool(
+    api,
+    {
+      name: 'feishu_get_user_cache',
+      label: 'Feishu: Get Current User Info Cache',
+      description:
+        '从本地缓存读取当前飞书消息发送者的用户信息。不调用飞书 API；缓存未命中时返回 null。',
+      parameters: GetUserCacheSchema,
+      async execute() {
+        const ticket = getTicket();
+        const openId = ticket?.senderOpenId;
+
+        if (!openId) {
+          return json({
+            error: '无法获取当前用户身份（senderOpenId），请在飞书对话中使用此工具。',
+          });
+        }
+
+        const user = getUserInfoCache().get(openId);
+
+        if (!user) {
+          log.info(`get_user_cache: cache miss for ${openId}`);
+          return json({
+            open_id: openId,
+            cache_hit: false,
+            user: null,
+          });
+        }
+
+        log.info(`get_user_cache: cache hit for ${openId}`);
+        return json({
+          open_id: openId,
+          cache_hit: true,
+          user: {
+            open_id: openId,
+            ...user,
+          },
+        });
+      },
+    },
+    { name: 'feishu_get_user_cache' },
+  );
 }

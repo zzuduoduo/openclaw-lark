@@ -30,6 +30,11 @@ import { UnavailableGuard } from './unavailable-guard';
 
 const log = larkLogger('card/reply-dispatcher');
 
+const DEFAULT_REASONING_DISPLAY = {
+  enabled: true,
+  expanded: false,
+} as const;
+
 // Re-export the params type for backward compatibility with dispatch.ts
 export type { CreateFeishuReplyDispatcherParams } from './reply-dispatcher-types';
 
@@ -64,6 +69,10 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
   const { toolUseDisplay } = params;
 
   const resolvedFooter = resolveFooterConfig(feishuCfg?.footer);
+  const reasoningDisplay = {
+    ...DEFAULT_REASONING_DISPLAY,
+    ...(feishuCfg?.reasoning ?? {}),
+  };
 
   log.info('reply mode resolved', {
     effectiveReplyMode,
@@ -99,6 +108,7 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
         replyInThread,
         toolUseDisplay,
         resolvedFooter,
+        reasoningDisplay,
       })
     : null;
 

@@ -14,7 +14,7 @@
 
 import type { LarkAccount } from '../../core/types';
 import { LarkClient } from '../../core/lark-client';
-import { getUserNameCache, getUserInfoCache } from './user-name-cache-store';
+import { getUserInfoCache, getUserNameCache } from './user-name-cache-store';
 import { type PermissionError, extractPermissionError } from './permission';
 
 export { UserNameCache, clearUserNameCache, getUserNameCache, getUserInfoCache } from './user-name-cache-store';

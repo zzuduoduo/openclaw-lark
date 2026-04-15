@@ -132,6 +132,10 @@ function extractThinkingContent(text: string): string {
  * "Reasoning:\n" prefixed content.
  */
 export function stripReasoningTags(text: string): string {
+  if (text.trim().startsWith(REASONING_PREFIX)) {
+    return '';
+  }
+
   // Strip complete XML blocks
   let result = text.replace(
     /<\s*(?:think(?:ing)?|thought|antthinking)\s*>[\s\S]*?<\s*\/\s*(?:think(?:ing)?|thought|antthinking)\s*>/gi,
@@ -319,6 +323,8 @@ export function buildCardContent(
     text?: string;
     reasoningText?: string;
     reasoningElapsedMs?: number;
+    reasoningEnabled?: boolean;
+    reasoningExpanded?: boolean;
     toolUseSteps?: ToolUseDisplayStep[];
     toolUseTitleSuffix?: { zh: string; en: string };
     toolUseElapsedMs?: number;
@@ -344,6 +350,8 @@ export function buildCardContent(
     case 'streaming':
       return buildStreamingCard(data.text ?? '', {
         reasoningText: data.reasoningText,
+        reasoningEnabled: data.reasoningEnabled,
+        reasoningExpanded: data.reasoningExpanded,
         showToolUse: data.showToolUse,
         toolUseSteps: data.toolUseSteps,
         toolUseTitleSuffix: data.toolUseTitleSuffix,
@@ -355,6 +363,8 @@ export function buildCardContent(
         isError: data.isError,
         reasoningText: data.reasoningText,
         reasoningElapsedMs: data.reasoningElapsedMs,
+        reasoningEnabled: data.reasoningEnabled,
+        reasoningExpanded: data.reasoningExpanded,
         toolUseSteps: data.toolUseSteps,
         toolUseTitleSuffix: data.toolUseTitleSuffix,
         toolUseElapsedMs: data.toolUseElapsedMs,
@@ -394,9 +404,11 @@ function buildStreamingCard(
     toolUseSteps?: ToolUseDisplayStep[];
     toolUseTitleSuffix?: { zh: string; en: string };
     reasoningText?: string;
+    reasoningEnabled?: boolean;
+    reasoningExpanded?: boolean;
   } = {},
 ): FeishuCard {
-  const { showToolUse = true, toolUseSteps, toolUseTitleSuffix, reasoningText } = params;
+  const { showToolUse = true, toolUseSteps, toolUseTitleSuffix, reasoningText, reasoningEnabled = true } = params;
   const elements: CardElement[] = [];
   const hasToolUse = Boolean(toolUseSteps?.length);
 
@@ -411,17 +423,14 @@ function buildStreamingCard(
     );
   }
 
-  if (!partialText && reasoningText) {
-    // Reasoning phase: show reasoning content in notation style
-    elements.push({
-      tag: 'markdown',
-      content: `💭 **Thinking...**\n\n${reasoningText}`,
-      i18n_content: {
-        zh_cn: `💭 **思考中...**\n\n${reasoningText}`,
-        en_us: `💭 **Thinking...**\n\n${reasoningText}`,
-      },
-      text_size: 'notation',
-    });
+  if (!partialText && reasoningEnabled && reasoningText) {
+    elements.push(
+      buildReasoningPanel({
+        reasoningText,
+        expanded: params.reasoningExpanded,
+        active: true,
+      }),
+    );
   } else if (partialText) {
     // Answer phase: show answer content only
     elements.push({
@@ -442,6 +451,8 @@ function buildCompleteCard(params: {
   isError?: boolean;
   reasoningText?: string;
   reasoningElapsedMs?: number;
+  reasoningEnabled?: boolean;
+  reasoningExpanded?: boolean;
   toolUseSteps?: ToolUseDisplayStep[];
   toolUseTitleSuffix?: { zh: string; en: string };
   toolUseElapsedMs?: number;
@@ -463,6 +474,8 @@ function buildCompleteCard(params: {
     isError,
     reasoningText,
     reasoningElapsedMs,
+    reasoningEnabled = true,
+    reasoningExpanded = false,
     toolUseSteps,
     toolUseTitleSuffix,
     toolUseElapsedMs,
@@ -484,42 +497,16 @@ function buildCompleteCard(params: {
   }
 
   // Collapsible reasoning panel (before main content)
-  if (reasoningText) {
+  if (reasoningEnabled && reasoningText) {
     const dur = reasoningElapsedMs ? formatReasoningDuration(reasoningElapsedMs) : null;
-    const zhLabel = dur ? dur.zh : '思考';
-    const enLabel = dur ? dur.en : 'Thought';
-    elements.push({
-      tag: 'collapsible_panel',
-      expanded: false,
-      header: {
-        title: {
-          tag: 'markdown',
-          content: `💭 ${enLabel}`,
-          i18n_content: {
-            zh_cn: `💭 ${zhLabel}`,
-            en_us: `💭 ${enLabel}`,
-          },
-        },
-        vertical_align: 'center',
-        icon: {
-          tag: 'standard_icon',
-          token: 'down-small-ccm_outlined',
-          size: '16px 16px',
-        },
-        icon_position: 'follow_text',
-        icon_expanded_angle: -180,
-      },
-      border: { color: 'grey', corner_radius: '5px' },
-      vertical_spacing: '8px',
-      padding: '8px 8px 8px 8px',
-      elements: [
-        {
-          tag: 'markdown',
-          content: reasoningText,
-          text_size: 'notation',
-        },
-      ],
-    });
+    elements.push(
+      buildReasoningPanel({
+        reasoningText,
+        expanded: reasoningExpanded,
+        zhLabel: dur?.zh,
+        enLabel: dur?.en,
+      }),
+    );
   }
 
   // Full text content
@@ -667,14 +654,27 @@ export function buildStreamingPreAnswerCard(params: {
   steps?: ToolUseDisplayStep[];
   elapsedMs?: number;
   showToolUse?: boolean;
+  reasoningText?: string;
+  reasoningEnabled?: boolean;
+  reasoningExpanded?: boolean;
 }): Record<string, unknown> {
-  const { steps, elapsedMs, showToolUse = true } = params;
+  const { steps, elapsedMs, showToolUse = true, reasoningText, reasoningEnabled = true } = params;
   const hasSteps = Boolean(steps?.length);
   const elements: unknown[] = [];
 
   if (showToolUse) {
     elements.push(
       hasSteps ? buildStreamingToolUseActivePanel({ steps: steps!, elapsedMs }) : buildStreamingToolUsePendingPanel(),
+    );
+  }
+
+  if (reasoningEnabled && reasoningText) {
+    elements.push(
+      buildReasoningPanel({
+        reasoningText,
+        expanded: params.reasoningExpanded,
+        active: true,
+      }),
     );
   }
 
@@ -709,6 +709,50 @@ export function buildStreamingPreAnswerCard(params: {
       },
     },
     body: { elements },
+  };
+}
+
+function buildReasoningPanel(params: {
+  reasoningText: string;
+  expanded?: boolean;
+  zhLabel?: string;
+  enLabel?: string;
+  active?: boolean;
+}): CardElement {
+  const { reasoningText, expanded = false, zhLabel, enLabel, active = false } = params;
+  const zhTitle = zhLabel ?? (active ? '思考中...' : '思考');
+  const enTitle = enLabel ?? (active ? 'Thinking...' : 'Thought');
+  return {
+    tag: 'collapsible_panel',
+    expanded,
+    header: {
+      title: {
+        tag: 'markdown',
+        content: `💭 ${enTitle}`,
+        i18n_content: {
+          zh_cn: `💭 ${zhTitle}`,
+          en_us: `💭 ${enTitle}`,
+        },
+      },
+      vertical_align: 'center',
+      icon: {
+        tag: 'standard_icon',
+        token: 'down-small-ccm_outlined',
+        size: '16px 16px',
+      },
+      icon_position: 'follow_text',
+      icon_expanded_angle: -180,
+    },
+    border: { color: 'grey', corner_radius: '5px' },
+    vertical_spacing: '8px',
+    padding: '8px 8px 8px 8px',
+    elements: [
+      {
+        tag: 'markdown',
+        content: reasoningText,
+        text_size: 'notation',
+      },
+    ],
   };
 }
 

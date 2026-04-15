@@ -78,6 +78,12 @@ export interface FeishuFooterConfig {
   model?: boolean;
 }
 
+/** Reasoning panel visibility for Feishu cards. */
+export interface FeishuReasoningConfig {
+  enabled?: boolean;
+  expanded?: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Resolved account (discriminated union)
 // ---------------------------------------------------------------------------

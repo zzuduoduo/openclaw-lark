@@ -11,7 +11,7 @@
 
 import type { ClawdbotConfig } from 'openclaw/plugin-sdk';
 import type { ReplyDispatcher } from 'openclaw/plugin-sdk/reply-runtime';
-import type { FeishuFooterConfig } from '../core/types';
+import type { FeishuFooterConfig, FeishuReasoningConfig } from '../core/types';
 import type { ToolUseDisplayConfig } from './tool-use-config';
 
 // ---------------------------------------------------------------------------
@@ -175,4 +175,5 @@ export interface StreamingCardDeps {
   replyInThread: boolean | undefined;
   toolUseDisplay: ToolUseDisplayConfig;
   resolvedFooter: Required<FeishuFooterConfig>;
+  reasoningDisplay: Required<FeishuReasoningConfig>;
 }

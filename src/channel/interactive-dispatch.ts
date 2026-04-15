@@ -53,6 +53,17 @@ function extractBasics(data: unknown): {
 
 export type FeishuInteractiveHandlerResponse = unknown;
 
+type FeishuPluginInteractiveDispatch = (params: {
+  channel: 'feishu';
+  data: string;
+  dedupeId: string;
+  invoke: (match: {
+    registration: { handler: (ctx: FeishuInteractiveHandlerContext) => Promise<unknown> | unknown };
+    namespace: string;
+    payload: string;
+  }) => Promise<{ handled: boolean }>;
+}) => Promise<{ matched: boolean }>;
+
 export interface FeishuInteractiveHandlerContext {
   channel: 'feishu';
   accountId: string;
@@ -190,13 +201,9 @@ export async function dispatchFeishuPluginInteractiveHandler(params: {
     }:${basics.action}`;
 
     let cardResponse: FeishuInteractiveHandlerResponse | undefined;
-    const result = await dispatchPluginInteractiveHandler<{
-      channel: 'feishu';
-      namespace: string;
-      // handler returns unknown so Feishu can synchronously return {toast, card}
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      handler: (ctx: FeishuInteractiveHandlerContext) => Promise<any> | any;
-    }>({
+    const dispatchFeishuInteractiveHandler =
+      dispatchPluginInteractiveHandler as unknown as FeishuPluginInteractiveDispatch;
+    const result = await dispatchFeishuInteractiveHandler({
       channel: 'feishu',
       data: basics.action,
       dedupeId,

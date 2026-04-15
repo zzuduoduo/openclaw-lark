@@ -365,6 +365,11 @@ export class StreamingCardController {
     return this.toolUse.elapsedMs || Date.now() - this.toolUse.startedAt;
   }
 
+  private get visibleReasoningText(): string | undefined {
+    if (!this.deps.reasoningDisplay.enabled) return undefined;
+    return this.reasoning.accumulatedReasoningText || undefined;
+  }
+
   private computeToolUseTitleSuffix(display: ToolUseDisplayResult | null): { zh: string; en: string } | undefined {
     if (!this.shouldDisplayToolUse) return undefined;
     const stepCount = display?.stepCount ?? 0;
@@ -621,7 +626,7 @@ export class StreamingCardController {
         const terminalContent = prepareTerminalCardContent(
           {
             text: rawErrorText,
-            reasoningText: this.reasoning.accumulatedReasoningText || undefined,
+            reasoningText: this.visibleReasoningText,
           },
           this.imageResolver,
         );
@@ -629,6 +634,8 @@ export class StreamingCardController {
           text: terminalContent.text,
           reasoningText: terminalContent.reasoningText,
           reasoningElapsedMs: this.reasoning.reasoningElapsedMs || undefined,
+          reasoningEnabled: this.deps.reasoningDisplay.enabled,
+          reasoningExpanded: this.deps.reasoningDisplay.expanded,
           toolUseSteps: toolUseDisplay?.steps,
           toolUseTitleSuffix: this.computeToolUseTitleSuffix(toolUseDisplay),
           toolUseElapsedMs: this.visibleToolUseElapsedMs,
@@ -707,7 +714,7 @@ export class StreamingCardController {
         const terminalContent = prepareTerminalCardContent(
           {
             text: resolvedDisplayText,
-            reasoningText: this.reasoning.accumulatedReasoningText || undefined,
+            reasoningText: this.visibleReasoningText,
           },
           this.imageResolver,
         );
@@ -717,6 +724,8 @@ export class StreamingCardController {
           text: terminalContent.text,
           reasoningText: terminalContent.reasoningText,
           reasoningElapsedMs: this.reasoning.reasoningElapsedMs || undefined,
+          reasoningEnabled: this.deps.reasoningDisplay.enabled,
+          reasoningExpanded: this.deps.reasoningDisplay.expanded,
           toolUseSteps: idleToolUseDisplay?.steps,
           toolUseTitleSuffix: this.computeToolUseTitleSuffix(idleToolUseDisplay),
           toolUseElapsedMs: this.visibleToolUseElapsedMs,
@@ -776,6 +785,9 @@ export class StreamingCardController {
     const rawText = payload.text ?? '';
     if (!rawText) return;
     const split = splitReasoningText(rawText);
+    if (split.reasoningText) {
+      this.reasoning.accumulatedReasoningText = split.reasoningText;
+    }
     const text = split.answerText ?? stripReasoningTags(rawText);
     if (!text) return;
     this.text.completedText = text;
@@ -798,7 +810,7 @@ export class StreamingCardController {
       const terminalContent = prepareTerminalCardContent(
         {
           text: this.text.accumulatedText || 'Aborted.',
-          reasoningText: this.reasoning.accumulatedReasoningText || undefined,
+          reasoningText: this.visibleReasoningText,
         },
         this.imageResolver,
       );
@@ -808,6 +820,8 @@ export class StreamingCardController {
           text: terminalContent.text,
           reasoningText: terminalContent.reasoningText,
           reasoningElapsedMs: this.reasoning.reasoningElapsedMs || undefined,
+          reasoningEnabled: this.deps.reasoningDisplay.enabled,
+          reasoningExpanded: this.deps.reasoningDisplay.expanded,
           toolUseSteps: abortToolUseDisplay?.steps,
           toolUseTitleSuffix: this.computeToolUseTitleSuffix(abortToolUseDisplay),
           toolUseElapsedMs: this.visibleToolUseElapsedMs,
@@ -825,6 +839,8 @@ export class StreamingCardController {
           text: terminalContent.text,
           reasoningText: terminalContent.reasoningText,
           reasoningElapsedMs: this.reasoning.reasoningElapsedMs || undefined,
+          reasoningEnabled: this.deps.reasoningDisplay.enabled,
+          reasoningExpanded: this.deps.reasoningDisplay.expanded,
           toolUseSteps: abortToolUseDisplay?.steps,
           toolUseTitleSuffix: this.computeToolUseTitleSuffix(abortToolUseDisplay),
           toolUseElapsedMs: this.visibleToolUseElapsedMs,
@@ -939,6 +955,8 @@ export class StreamingCardController {
 
           const fallbackCard = buildCardContent('streaming', {
             showToolUse: this.deps.toolUseDisplay.showToolUse,
+            reasoningEnabled: this.deps.reasoningDisplay.enabled,
+            reasoningExpanded: this.deps.reasoningDisplay.expanded,
           });
           const result = await sendCardFeishu({
             cfg: this.deps.cfg,
@@ -1003,6 +1021,25 @@ export class StreamingCardController {
       const resolvedText = this.imageResolver.resolveImages(displayText);
 
       if (this.cardKit.cardKitCardId) {
+        if (this.reasoning.isReasoningPhase && this.visibleReasoningText) {
+          const flushDisplay = this.computeToolUseDisplay();
+          const card = buildStreamingPreAnswerCard({
+            steps: flushDisplay?.steps,
+            elapsedMs: this.visibleToolUseElapsedMs,
+            showToolUse: this.shouldDisplayToolUse,
+            reasoningText: this.imageResolver.resolveImages(this.visibleReasoningText),
+            reasoningEnabled: this.deps.reasoningDisplay.enabled,
+            reasoningExpanded: this.deps.reasoningDisplay.expanded,
+          });
+          this.cardKit.cardKitSequence += 1;
+          await updateCardKitCard({
+            cfg: this.deps.cfg,
+            cardId: this.cardKit.cardKitCardId,
+            card,
+            sequence: this.cardKit.cardKitSequence,
+            accountId: this.deps.accountId,
+          });
+        }
         if (resolvedText !== this.text.lastFlushedText) {
           const prevSeq = this.cardKit.cardKitSequence;
           this.cardKit.cardKitSequence += 1;
@@ -1025,7 +1062,9 @@ export class StreamingCardController {
         const flushDisplay = this.computeToolUseDisplay();
         const card = buildCardContent('streaming', {
           text: this.reasoning.isReasoningPhase ? '' : resolvedText,
-          reasoningText: this.reasoning.isReasoningPhase ? this.reasoning.accumulatedReasoningText : undefined,
+          reasoningText: this.reasoning.isReasoningPhase ? this.visibleReasoningText : undefined,
+          reasoningEnabled: this.deps.reasoningDisplay.enabled,
+          reasoningExpanded: this.deps.reasoningDisplay.expanded,
           toolUseSteps: flushDisplay?.steps,
           toolUseTitleSuffix: this.computeToolUseTitleSuffix(flushDisplay),
           showToolUse: this.deps.toolUseDisplay.showToolUse,
@@ -1074,16 +1113,17 @@ export class StreamingCardController {
   }
 
   private buildDisplayText(): string {
-    if (this.reasoning.isReasoningPhase && this.reasoning.accumulatedReasoningText) {
-      const reasoningDisplay = `💭 **Thinking...**\n\n${this.reasoning.accumulatedReasoningText}`;
-      return this.text.accumulatedText ? this.text.accumulatedText + '\n\n' + reasoningDisplay : reasoningDisplay;
-    }
     return this.text.accumulatedText;
   }
 
   private async throttledCardUpdate(): Promise<void> {
     if (this.guard.shouldSkip('throttledCardUpdate')) return;
-    const throttleMs = this.cardKit.cardKitCardId ? THROTTLE_CONSTANTS.CARDKIT_MS : THROTTLE_CONSTANTS.PATCH_MS;
+    const throttleMs =
+      this.cardKit.cardKitCardId && this.reasoning.isReasoningPhase && this.visibleReasoningText
+        ? THROTTLE_CONSTANTS.REASONING_STATUS_MS
+        : this.cardKit.cardKitCardId
+          ? THROTTLE_CONSTANTS.CARDKIT_MS
+          : THROTTLE_CONSTANTS.PATCH_MS;
     await this.flush.throttledUpdate(throttleMs);
   }
 
@@ -1107,6 +1147,9 @@ export class StreamingCardController {
         steps: display?.steps,
         elapsedMs: this.visibleToolUseElapsedMs,
         showToolUse: this.shouldDisplayToolUse,
+        reasoningText: this.visibleReasoningText,
+        reasoningEnabled: this.deps.reasoningDisplay.enabled,
+        reasoningExpanded: this.deps.reasoningDisplay.expanded,
       });
       this.cardKit.cardKitSequence += 1;
       await updateCardKitCard({

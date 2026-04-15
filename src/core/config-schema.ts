@@ -70,6 +70,13 @@ const FeishuFooterSchema = z
   })
   .optional();
 
+const FeishuReasoningSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    expanded: z.boolean().optional(),
+  })
+  .optional();
+
 const BlockStreamingCoalesceSchema = z
   .object({
     minChars: z.number().optional(),
@@ -187,6 +194,7 @@ export const FeishuAccountConfigSchema = z.object({
     .optional(),
   tools: FeishuToolsFlagSchema,
   footer: FeishuFooterSchema,
+  reasoning: FeishuReasoningSchema,
   markdown: MarkdownConfigSchema,
   configWrites: z.boolean().optional(),
   capabilities: CapabilitiesSchema,

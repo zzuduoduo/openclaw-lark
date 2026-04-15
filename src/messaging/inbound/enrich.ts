@@ -28,7 +28,7 @@ import type { LarkAccount } from '../../core/types';
 import { getMessageFeishu } from '../outbound/fetch';
 import type { PermissionError } from './permission';
 import { PERMISSION_ERROR_COOLDOWN_MS, permissionErrorNotifiedAt } from './permission';
-import { batchResolveUserNames, getUserNameCache, resolveUserName  } from './user-name-cache';
+import { batchResolveUserNames, getUserNameCache, resolveUserName } from './user-name-cache';
 import { buildFeishuMediaPayload, downloadResources } from './media-resolver';
 
 // ---------------------------------------------------------------------------
@@ -82,12 +82,7 @@ export async function resolveSenderInfo(params: {
     });
   }
 
-  // Note: permission errors are not returned from the critical path anymore.
-  // They will be caught by the background task and cached, so subsequent
-  // messages will benefit.
-  let permissionError: PermissionError | undefined;
-
-  return { ctx, permissionError };
+  return { ctx };
 }
 
 /**
