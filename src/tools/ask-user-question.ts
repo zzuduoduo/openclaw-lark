@@ -904,9 +904,9 @@ const AskUserQuestionSchema = Type.Object({
       }),
     }),
     {
-      description: 'Questions to ask the user (1-6 questions)',
+      description: 'Questions to ask the user (1-20 questions)',
       minItems: 1,
-      maxItems: 6,
+      maxItems: 20,
     },
   ),
 });
