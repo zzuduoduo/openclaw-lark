@@ -14,11 +14,11 @@
  * - dispatch-commands.ts — system command & permission notification
  */
 
-import type { ClawdbotConfig, RuntimeEnv  } from 'openclaw/plugin-sdk';
+import type { ClawdbotConfig, RuntimeEnv } from 'openclaw/plugin-sdk';
 import type { HistoryEntry } from 'openclaw/plugin-sdk/reply-history';
 import { clearHistoryEntriesIfEnabled } from 'openclaw/plugin-sdk/reply-history';
 import type { MessageContext } from '../types';
-import type { FeishuGroupConfig, LarkAccount  } from '../../core/types';
+import type { FeishuGroupConfig, LarkAccount } from '../../core/types';
 import { larkLogger } from '../../core/lark-logger';
 import { ticketElapsed } from '../../core/lark-ticket';
 import { createFeishuReplyDispatcher } from '../../card/reply-dispatcher';
@@ -135,13 +135,11 @@ async function dispatchNormalMessage(
     return;
   }
 
-  // Abort messages should never create streaming cards — dispatch via the
-  // plain-text system-command path so the SDK's abort handler can reply
-  // without touching CardKit.
+  // Abort messages are control messages. The websocket handler consumes them
+  // before queueing; this fallback keeps synthetic paths silent as well.
   if (isLikelyAbortText(dc.ctx.content?.trim() ?? '')) {
-    dc.log(`feishu[${dc.account.accountId}]: abort message detected, using plain-text dispatch`);
-    log.info('abort message detected, using plain-text dispatch');
-    await dispatchSystemCommand(dc, ctxPayload, replyToMessageId);
+    dc.log(`feishu[${dc.account.accountId}]: abort message detected, suppressing reply`);
+    log.info('abort message detected, suppressing reply');
     return;
   }
 
@@ -375,6 +373,12 @@ export async function dispatchToAgent(params: {
   //     deliver to comment:... targets.
   const contentTrimmed = (params.ctx.content ?? '').trim();
   const isCommentFlow = isCommentTarget(dc.ctx.chatId);
+  if (!isCommentFlow && isLikelyAbortText(contentTrimmed)) {
+    dc.log(`feishu[${dc.account.accountId}]: abort command detected, suppressing reply`);
+    log.info('abort command detected, suppressing reply');
+    return;
+  }
+
   const isDoctorCommand = !isCommentFlow && /^\/feishu[_ ]doctor\s*$/i.test(contentTrimmed);
   const isAuthCommand = !isCommentFlow && /^\/feishu[_ ](?:auth|onboarding)\s*$/i.test(contentTrimmed);
   const isStartCommand = !isCommentFlow && /^\/feishu[_ ]start\s*$/i.test(contentTrimmed);
@@ -431,8 +435,8 @@ export async function dispatchToAgent(params: {
   // 8. Dispatch: system command vs. normal message
   //    Comment targets always go to normal dispatch — system command
   //    delivery uses sendMessageFeishu which can't reach comment threads.
-  const isCommand = !isCommentFlow &&
-    dc.core.channel.commands.isControlCommandMessage(params.ctx.content, params.accountScopedCfg);
+  const isCommand =
+    !isCommentFlow && dc.core.channel.commands.isControlCommandMessage(params.ctx.content, params.accountScopedCfg);
 
   // Resolve per-group skill filter (per-group > default "*")
   const skillFilter = dc.isGroup ? (params.groupConfig?.skills ?? params.defaultGroupConfig?.skills) : undefined;

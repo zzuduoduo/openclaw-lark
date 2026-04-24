@@ -103,6 +103,8 @@ export async function handleMessageEvent(ctx: MonitorContext, data: unknown): Pr
           });
         }
       }
+      log(`feishu[${accountId}]: abort control message ${msgId} consumed`);
+      return;
     }
 
     const { status } = enqueueFeishuChatTask({
