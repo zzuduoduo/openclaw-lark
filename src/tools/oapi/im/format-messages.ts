@@ -5,9 +5,7 @@
  * 消息格式化公共函数
  *
  * 将飞书 IM API 返回的原始消息对象转换为 AI 可读的 JSON 格式。
- * 由 feishu_im_user_get_messages 和 feishu_im_user_get_thread_messages 共享。
- *
- * 所有 API 调用均通过 UAT（用户身份）进行。
+ * 由用户身份和机器人身份的 IM 读取工具共享。
  */
 
 import type { LarkAccount } from '../../../core/types';
@@ -220,5 +218,37 @@ export async function formatMessageList(
   };
 
   // 5. 逐条格式化
+  return Promise.all(items.map((item) => formatMessageItem(item, accountId, nameResolver, ctxOverrides)));
+}
+
+/**
+ * 批量格式化消息列表（不触发用户授权）。
+ *
+ * 机器人/后台任务读取历史消息时不能依赖 UAT。这个路径只使用消息本身
+ * 携带的 mention 名称和已有缓存，不主动批量解析 sender 名字，也不展开
+ * merge_forward 子消息。
+ */
+export async function formatMessageListWithoutUserAuth(
+  items: ApiMessageItem[],
+  account: LarkAccount,
+): Promise<FormattedMessage[]> {
+  const accountId = account.accountId;
+  const mentionNames = new Map<string, string>();
+  for (const item of items) {
+    for (const m of item.mentions ?? []) {
+      const openId = extractMentionOpenId(m.id);
+      if (openId && m.name) {
+        mentionNames.set(openId, m.name);
+      }
+    }
+  }
+
+  const nameResolver = (openId: string) => mentionNames.get(openId) ?? getUATUserName(accountId, openId);
+  const ctxOverrides = {
+    account,
+    accountId,
+    resolveUserName: nameResolver,
+  };
+
   return Promise.all(items.map((item) => formatMessageItem(item, accountId, nameResolver, ctxOverrides)));
 }

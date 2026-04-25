@@ -2,21 +2,32 @@
  * Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
  * SPDX-License-Identifier: MIT
  *
- * 消息读取工具集 -- 以用户身份获取/搜索飞书消息
+ * 消息读取工具集 -- 获取/搜索飞书消息
  *
  * 包含：
  *   - feishu_im_user_get_messages       (chat_id / open_id → 会话消息)
  *   - feishu_im_user_get_thread_messages (thread_id → 话题消息)
  *   - feishu_im_user_search_messages     (跨会话关键词搜索)
+ *   - feishu_im_bot_get_messages        (机器人身份 → 当前群消息)
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type { OpenClawPluginApi } from 'openclaw/plugin-sdk';
 import { Type } from '@sinclair/typebox';
 import type { ToolClient } from '../helpers';
-import { StringEnum, assertLarkOk, createToolContext, getFirstAccount, handleInvokeErrorWithAutoAuth, json, registerTool } from '../helpers';
+import { getTicket } from '../../../core/lark-ticket';
+import {
+  StringEnum,
+  assertLarkOk,
+  createToolContext,
+  formatLarkError,
+  getFirstAccount,
+  handleInvokeErrorWithAutoAuth,
+  json,
+  registerTool,
+} from '../helpers';
 import { dateTimeToSecondsString, parseTimeRangeToSeconds } from './time-utils';
-import { type FormattedMessage, formatMessageList } from './format-messages';
+import { type FormattedMessage, formatMessageList, formatMessageListWithoutUserAuth } from './format-messages';
 import { batchResolveUserNamesAsUser, getUATUserName } from './user-name-uat';
 
 // ===========================================================================
@@ -84,6 +95,19 @@ async function formatAndReturn(res: any, config: any, log: { info: (msg: string)
   const hasMore: boolean = res.data?.has_more ?? false;
   const pageToken: string | undefined = res.data?.page_token;
   log.info(`list: returned ${messages.length} messages, has_more=${hasMore}`);
+
+  return json({ messages, has_more: hasMore, page_token: pageToken });
+}
+
+/** 格式化 message.list 结果并返回，不触发用户授权 */
+async function formatAndReturnWithoutUserAuth(res: any, config: any, log: { info: (msg: string) => void }) {
+  const items = res.data?.items ?? [];
+  const account = getFirstAccount(config);
+  const messages = await formatMessageListWithoutUserAuth(items, account);
+
+  const hasMore: boolean = res.data?.has_more ?? false;
+  const pageToken: string | undefined = res.data?.page_token;
+  log.info(`bot list: returned ${messages.length} messages, has_more=${hasMore}`);
 
   return json({ messages, has_more: hasMore, page_token: pageToken });
 }
@@ -219,6 +243,148 @@ function registerGetMessages(api: OpenClawPluginApi): boolean {
       },
     },
     { name: 'feishu_im_user_get_messages' },
+  );
+}
+
+// ===========================================================================
+// feishu_im_bot_get_messages
+// ===========================================================================
+
+const BotGetMessagesSchema = Type.Object({
+  chat_id: Type.Optional(
+    Type.String({
+      description: '群聊会话 ID（oc_xxx）。不填时使用当前群上下文。只能读取当前上下文群',
+    }),
+  ),
+  sort_rule: Type.Optional(
+    StringEnum(['create_time_asc', 'create_time_desc'], {
+      description: '排序方式，默认 create_time_desc（最新消息在前）',
+    }),
+  ),
+  page_size: Type.Optional(Type.Number({ description: '每页消息数（1-50），默认 50', minimum: 1, maximum: 50 })),
+  page_token: Type.Optional(Type.String({ description: '分页标记，用于获取下一页' })),
+  relative_time: Type.Optional(
+    Type.String({
+      description:
+        '相对时间范围：today / yesterday / day_before_yesterday / this_week / last_week / this_month / last_month / last_{N}_{unit}（unit: minutes/hours/days）。与 start_time/end_time 互斥',
+    }),
+  ),
+  start_time: Type.Optional(
+    Type.String({
+      description: '起始时间（ISO 8601 格式，如 2026-02-27T00:00:00+08:00）。与 relative_time 互斥',
+    }),
+  ),
+  end_time: Type.Optional(
+    Type.String({
+      description: '结束时间（ISO 8601 格式，如 2026-02-27T23:59:59+08:00）。与 relative_time 互斥',
+    }),
+  ),
+});
+
+interface BotGetMessagesParams {
+  chat_id?: string;
+  sort_rule?: 'create_time_asc' | 'create_time_desc';
+  page_size?: number;
+  page_token?: string;
+  relative_time?: string;
+  start_time?: string;
+  end_time?: string;
+}
+
+function normalizeChatId(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return trimmed.startsWith('chat:') ? trimmed.slice('chat:'.length) : trimmed;
+}
+
+function getCurrentGroupChatId(): string | undefined {
+  return normalizeChatId(getTicket()?.chatId);
+}
+
+function botReadError(err: unknown) {
+  const code = (err as any)?.code ?? (err as any)?.response?.data?.code;
+  const msg = (err as any)?.msg ?? (err as any)?.response?.data?.msg ?? formatLarkError(err);
+
+  if (code === 99991672) {
+    return json({ error: 'missing_app_scope', message: msg, code });
+  }
+
+  const lower = String(msg).toLowerCase();
+  if (lower.includes('bot') && (lower.includes('not') || lower.includes('member') || lower.includes('chat'))) {
+    return json({ error: 'bot_not_in_chat', message: msg, code });
+  }
+
+  return json({ error: formatLarkError(err), code });
+}
+
+function registerBotGetMessages(api: OpenClawPluginApi): boolean {
+  if (!api.config) return false;
+  const config = api.config;
+  const { getClient, log } = createToolContext(api, 'feishu_im_bot_get_messages');
+
+  return registerTool(
+    api,
+    {
+      name: 'feishu_im_bot_get_messages',
+      label: 'Feishu: Bot Get IM Messages',
+      description:
+        '【以机器人身份】获取当前群聊的历史消息，适用于定时任务、后台任务和无用户 OAuth 上下文的群聊汇总。' +
+        '\n\n用法：' +
+        '\n- 不传 chat_id 时读取当前群上下文' +
+        '\n- 传 chat_id 时只能传当前上下文群 ID（oc_xxx）' +
+        '\n- 支持时间范围过滤：relative_time（如 today、last_3_days）或 start_time/end_time（ISO 8601 格式）' +
+        '\n- 支持分页：page_size + page_token' +
+        '\n\n【安全约束】只能读取当前群/任务来源群，不支持跨群任意读取。' +
+        '\n\n返回消息列表，格式与 feishu_im_user_get_messages 兼容。',
+      parameters: BotGetMessagesSchema,
+      async execute(_toolCallId: string, params: unknown) {
+        const p = params as BotGetMessagesParams;
+        try {
+          if (p.relative_time && (p.start_time || p.end_time)) {
+            return json({ error: 'cannot use both relative_time and start_time/end_time' });
+          }
+
+          const currentChatId = getCurrentGroupChatId();
+          const requestedChatId = normalizeChatId(p.chat_id) ?? currentChatId;
+
+          if (!requestedChatId) {
+            return json({
+              error: 'missing_group_context',
+              message: 'chat_id is required when current group context is unavailable',
+            });
+          }
+          if (!currentChatId || requestedChatId !== currentChatId) {
+            return json({ error: 'chat_not_allowed', chat_id: requestedChatId, allowed_chat_id: currentChatId });
+          }
+
+          const time = resolveTimeRange(p, log.info);
+          log.info(
+            `bot list: chat_id=${requestedChatId}, sort=${p.sort_rule ?? 'create_time_desc'}, page_size=${p.page_size ?? 50}`,
+          );
+
+          const res = await getClient().im.v1.message.list({
+            params: {
+              container_id_type: 'chat',
+              container_id: requestedChatId,
+              start_time: time.start,
+              end_time: time.end,
+              sort_type: sortRuleToSortType(p.sort_rule),
+              page_size: p.page_size ?? 50,
+              page_token: p.page_token,
+              card_msg_content_type: 'raw_card_content',
+            } as any,
+          });
+          assertLarkOk(res);
+
+          return await formatAndReturnWithoutUserAuth(res, config, log);
+        } catch (err) {
+          log.error(`Error: ${formatLarkError(err)}`);
+          return botReadError(err);
+        }
+      },
+    },
+    { name: 'feishu_im_bot_get_messages' },
   );
 }
 
@@ -605,6 +771,7 @@ function registerSearchMessages(api: OpenClawPluginApi): boolean {
 export function registerMessageReadTools(api: OpenClawPluginApi): string[] {
   const registered: string[] = [];
   if (registerGetMessages(api)) registered.push('feishu_im_user_get_messages');
+  if (registerBotGetMessages(api)) registered.push('feishu_im_bot_get_messages');
   if (registerGetThreadMessages(api)) registered.push('feishu_im_user_get_thread_messages');
   if (registerSearchMessages(api)) registered.push('feishu_im_user_search_messages');
   return registered;
