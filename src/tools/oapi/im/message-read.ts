@@ -343,10 +343,11 @@ function registerBotGetMessages(api: OpenClawPluginApi): boolean {
       description:
         '【以机器人身份】获取当前群聊的历史消息，适用于定时任务、后台任务和无用户 OAuth 上下文的群聊汇总。' +
         '\n\n用法：' +
-        '\n- 不传 chat_id 时读取当前群上下文' +
+        '\n- 不传 chat_id 时读取当前群上下文（包括 cron 触发时由 cron context 注入的群 ID）' +
         '\n- 传 chat_id 时只能传当前上下文群 ID（oc_xxx）' +
         '\n- 支持时间范围过滤：relative_time（如 today、last_3_days）或 start_time/end_time（ISO 8601 格式）' +
         '\n- 支持分页：page_size + page_token' +
+        '\n\n【应用权限要求】使用 tenant_access_token 调用 OAPI im.v1.message.list，需应用具备 `im:message.group_msg`（敏感权限，飞书开放平台需审核通过）。' +
         '\n\n【安全约束】只能读取当前群/任务来源群，不支持跨群任意读取。' +
         '\n\n返回消息列表，格式与 feishu_im_user_get_messages 兼容。',
       parameters: BotGetMessagesSchema,
