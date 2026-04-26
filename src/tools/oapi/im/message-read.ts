@@ -16,6 +16,9 @@ import type { OpenClawPluginApi } from 'openclaw/plugin-sdk';
 import { Type } from '@sinclair/typebox';
 import type { ToolClient } from '../helpers';
 import { getTicket } from '../../../core/lark-ticket';
+import { LARK_ERROR } from '../../../core/auth-errors';
+import { openPlatformDomain } from '../../../core/domains';
+import type { LarkAccount } from '../../../core/types';
 import {
   StringEnum,
   assertLarkOk,
@@ -302,18 +305,20 @@ function getCurrentGroupChatId(): string | undefined {
   return normalizeChatId(getTicket()?.chatId);
 }
 
-function botReadError(err: unknown) {
+function botReadError(err: unknown, account?: Pick<LarkAccount, 'appId' | 'brand'>) {
   const code = (err as any)?.code ?? (err as any)?.response?.data?.code;
   const msg = (err as any)?.msg ?? (err as any)?.response?.data?.msg ?? formatLarkError(err);
 
-  if (code === 99991672) {
+  if (code === LARK_ERROR.APP_SCOPE_MISSING) {
+    const domain = openPlatformDomain(account?.brand);
+    const permission_url = account?.appId ? `${domain}/app/${account.appId}/permission` : `${domain}/app`;
     return json({
       error: 'missing_app_scope',
       message: msg,
       code,
       required_scope: 'im:message.group_msg',
-      permission_url: 'https://open.feishu.cn/app',
-      hint: '该 scope 为敏感权限，需在飞书开放平台为应用申请并通过审核后生效。',
+      permission_url,
+      hint: '该 scope 为敏感权限，需在飞书开放平台为应用申请并通过审核后生效。This is a sensitive scope; the app admin must request it on the Feishu open platform and pass review.',
     });
   }
 
@@ -387,7 +392,7 @@ function registerBotGetMessages(api: OpenClawPluginApi): boolean {
           return await formatAndReturnWithoutUserAuth(res, config, log);
         } catch (err) {
           log.error(`Error: ${formatLarkError(err)}`);
-          return botReadError(err);
+          return botReadError(err, getFirstAccount(config));
         }
       },
     },

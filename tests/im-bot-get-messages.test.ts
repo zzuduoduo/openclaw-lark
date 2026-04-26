@@ -39,7 +39,7 @@ vi.mock('../src/tools/oapi/helpers', () => ({
     },
   }),
   formatLarkError: (err: unknown) => (err instanceof Error ? err.message : String(err)),
-  getFirstAccount: () => ({ accountId: 'default' }),
+  getFirstAccount: () => ({ accountId: 'default', appId: 'cli_test_app', brand: 'feishu' }),
   handleInvokeErrorWithAutoAuth: vi.fn(),
   json: (data: unknown) => ({
     content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
@@ -145,8 +145,8 @@ describe('feishu_im_bot_get_messages', () => {
       message: 'missing scope',
       code: 99991672,
       required_scope: 'im:message.group_msg',
-      permission_url: 'https://open.feishu.cn/app',
-      hint: '该 scope 为敏感权限，需在飞书开放平台为应用申请并通过审核后生效。',
+      permission_url: 'https://open.feishu.cn/app/cli_test_app/permission',
+      hint: '该 scope 为敏感权限，需在飞书开放平台为应用申请并通过审核后生效。This is a sensitive scope; the app admin must request it on the Feishu open platform and pass review.',
     });
   });
 
