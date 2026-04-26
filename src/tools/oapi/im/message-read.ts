@@ -307,7 +307,14 @@ function botReadError(err: unknown) {
   const msg = (err as any)?.msg ?? (err as any)?.response?.data?.msg ?? formatLarkError(err);
 
   if (code === 99991672) {
-    return json({ error: 'missing_app_scope', message: msg, code });
+    return json({
+      error: 'missing_app_scope',
+      message: msg,
+      code,
+      required_scope: 'im:message.group_msg',
+      permission_url: 'https://open.feishu.cn/app',
+      hint: '该 scope 为敏感权限，需在飞书开放平台为应用申请并通过审核后生效。',
+    });
   }
 
   const lower = String(msg).toLowerCase();
