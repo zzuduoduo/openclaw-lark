@@ -55,18 +55,45 @@ describe('getLarkAccount – footer inheritance', () => {
     });
   });
 
-  it('default account preserves top-level footer when accounts map exists', () => {
+  it('explicit default account preserves top-level footer when accounts map exists', () => {
     const cfg = makeCfg({
       appId: 'default',
       appSecret: 'secret',
       footer: baseFooter,
       accounts: {
+        default: {},
         'bot-b': { appId: 'b', appSecret: 'sb' },
       },
     });
 
-    const account = getLarkAccount(cfg, undefined);
+    const account = getLarkAccount(cfg, 'default');
     expect(account.config.footer).toEqual(baseFooter);
+  });
+
+  it('does not create an implicit default account when named accounts exist', () => {
+    const cfg = makeCfg({
+      appId: 'default',
+      appSecret: 'secret',
+      accounts: {
+        'bot-b': { appId: 'b', appSecret: 'sb' },
+      },
+    });
+
+    expect(getLarkAccountIds(cfg)).toEqual(['bot-b']);
+  });
+
+  it('omitted account id resolves to the first explicit account in multi-account mode', () => {
+    const cfg = makeCfg({
+      appId: 'default',
+      appSecret: 'secret',
+      accounts: {
+        'bot-b': { appId: 'b', appSecret: 'sb' },
+      },
+    });
+
+    const account = getLarkAccount(cfg);
+    expect(account.accountId).toBe('bot-b');
+    expect(account.config.appId).toBe('b');
   });
 
   it('all enabled accounts get the footer when defined at top level only', () => {

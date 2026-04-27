@@ -5,9 +5,8 @@
  * Configuration merge helpers for Feishu account management.
  *
  * Centralises the pattern of merging a partial configuration patch
- * into the Feishu section of the top-level ClawdbotConfig, handling
- * both the default account (top-level fields) and named accounts
- * (nested under `accounts`).
+ * into the Feishu section of the top-level ClawdbotConfig. Account credentials
+ * are stored under `accounts`; use `accounts.default` for the default account.
  */
 
 import type { ClawdbotConfig } from 'openclaw/plugin-sdk';
@@ -22,16 +21,7 @@ function mergeFeishuAccountConfig(
   accountId: string,
   patch: Record<string, unknown>,
 ): ClawdbotConfig {
-  const isDefault = !accountId || accountId === DEFAULT_ACCOUNT_ID;
-  if (isDefault) {
-    return {
-      ...cfg,
-      channels: {
-        ...cfg.channels,
-        feishu: { ...cfg.channels?.feishu, ...patch },
-      },
-    };
-  }
+  const targetAccountId = !accountId || accountId === DEFAULT_ACCOUNT_ID ? DEFAULT_ACCOUNT_ID : accountId;
   const feishuCfg = cfg.channels?.feishu as FeishuConfig | undefined;
   return {
     ...cfg,
@@ -41,7 +31,7 @@ function mergeFeishuAccountConfig(
         ...feishuCfg,
         accounts: {
           ...feishuCfg?.accounts,
-          [accountId]: { ...feishuCfg?.accounts?.[accountId], ...patch },
+          [targetAccountId]: { ...feishuCfg?.accounts?.[targetAccountId], ...patch },
         },
       },
     },
@@ -65,8 +55,9 @@ export function applyAccountConfig(
 /** Delete a Feishu account entry from the config. */
 export function deleteAccount(cfg: ClawdbotConfig, accountId: string): ClawdbotConfig {
   const isDefault = !accountId || accountId === DEFAULT_ACCOUNT_ID;
+  const feishuCfg = cfg.channels?.feishu as FeishuConfig | undefined;
 
-  if (isDefault) {
+  if (isDefault && !feishuCfg?.accounts) {
     // Delete entire feishu config
     const next = { ...cfg } as ClawdbotConfig;
     const nextChannels = { ...cfg.channels };
@@ -80,9 +71,8 @@ export function deleteAccount(cfg: ClawdbotConfig, accountId: string): ClawdbotC
   }
 
   // Delete specific account from accounts
-  const feishuCfg = cfg.channels?.feishu as FeishuConfig | undefined;
   const accounts = { ...feishuCfg?.accounts };
-  delete accounts[accountId];
+  delete accounts[isDefault ? DEFAULT_ACCOUNT_ID : accountId];
 
   return {
     ...cfg,

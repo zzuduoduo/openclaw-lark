@@ -4,7 +4,7 @@
  *
  * Lark multi-account management.
  *
- * Account overrides live under `cfg.channels.feishu.accounts`.
+ * Account definitions live under `cfg.channels.feishu.accounts`.
  * Each account may override any top-level Feishu config field;
  * unset fields fall back to the top-level defaults.
  */
@@ -80,28 +80,22 @@ function toBrand(domain: string | undefined): LarkBrand {
 /**
  * List all account IDs defined in the Lark config.
  *
- * Returns `[DEFAULT_ACCOUNT_ID]` when no explicit accounts exist.
+ * Returns `[DEFAULT_ACCOUNT_ID]` only for legacy single-account configs.
+ * When an `accounts` map is present, only explicitly listed account IDs are
+ * returned. Configure `accounts.default` when a default account is desired.
  */
 export function getLarkAccountIds(cfg: ClawdbotConfig): string[] {
   const section = getLarkConfig(cfg);
   if (!section) return [DEFAULT_ACCOUNT_ID];
 
   const accountMap = getAccountMap(section);
-  if (!accountMap || Object.keys(accountMap).length === 0) {
+  if (!accountMap) {
     return [DEFAULT_ACCOUNT_ID];
   }
 
   const accountIds = Object.keys(accountMap);
-
-  // 当 accounts 存在时，如果顶层也配置了 appId/appSecret（即默认机器人），
-  // 将 DEFAULT_ACCOUNT_ID 加入列表，确保顶层机器人不会被忽略。
-  // 但如果 accountMap 已经包含 default，则不重复添加。
-  const hasDefault = accountIds.some((id) => id.trim().toLowerCase() === DEFAULT_ACCOUNT_ID);
-  if (!hasDefault) {
-    const base = baseConfig(section);
-    if (base.appId && base.appSecret) {
-      return [DEFAULT_ACCOUNT_ID, ...accountIds];
-    }
+  if (accountIds.length === 0) {
+    return [DEFAULT_ACCOUNT_ID];
   }
 
   return accountIds;
@@ -116,10 +110,13 @@ export function getDefaultLarkAccountId(cfg: ClawdbotConfig): string {
  * Resolve a single account by merging the top-level config with
  * account-level overrides.  Account fields take precedence.
  *
- * Falls back to the default account when `accountId` is omitted or `null`.
+ * Falls back to the first configured account when `accountId` is omitted or
+ * `null`.
  */
 export function getLarkAccount(cfg: ClawdbotConfig, accountId?: string | null): LarkAccount {
-  const requestedId = accountId ? (normalizeAccountId(accountId) ?? DEFAULT_ACCOUNT_ID) : DEFAULT_ACCOUNT_ID;
+  const requestedId = accountId
+    ? (normalizeAccountId(accountId) ?? DEFAULT_ACCOUNT_ID)
+    : getDefaultLarkAccountId(cfg);
 
   const section = getLarkConfig(cfg);
 
@@ -135,10 +132,7 @@ export function getLarkAccount(cfg: ClawdbotConfig, accountId?: string | null): 
 
   const base = baseConfig(section);
   const accountMap = getAccountMap(section);
-  const accountOverride =
-    accountMap && requestedId !== DEFAULT_ACCOUNT_ID
-      ? (accountMap[requestedId] as Partial<FeishuConfig> | undefined)
-      : undefined;
+  const accountOverride = accountMap?.[requestedId] as Partial<FeishuConfig> | undefined;
 
   const merged: FeishuConfig = accountOverride
     ? mergeAccountConfig(base, accountOverride)
