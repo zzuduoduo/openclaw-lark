@@ -96,6 +96,11 @@ export type ToolActionKey =
   | 'feishu_calendar_event_attendee.create'
   | 'feishu_calendar_event_attendee.list'
   | 'feishu_calendar_freebusy.list'
+  | 'feishu_calendar_room.availability'
+  | 'feishu_calendar_room.get'
+  | 'feishu_calendar_room.list'
+  | 'feishu_calendar_room.search'
+  | 'feishu_calendar_room.search_available'
   | 'feishu_chat.get'
   | 'feishu_chat.search'
   | 'feishu_chat_members.default'
@@ -230,6 +235,11 @@ export const TOOL_SCOPES: ToolScopeMapping = {
   'feishu_calendar_event_attendee.create': ['calendar:calendar.event:update'],
   'feishu_calendar_event_attendee.list': ['calendar:calendar.event:read'],
   'feishu_calendar_freebusy.list': ['calendar:calendar.free_busy:read'],
+  'feishu_calendar_room.list': ['vc:room:readonly'],
+  'feishu_calendar_room.get': ['vc:room:readonly'],
+  'feishu_calendar_room.search': ['vc:room:readonly'],
+  'feishu_calendar_room.availability': ['vc:room:readonly', 'calendar:calendar.free_busy:read'],
+  'feishu_calendar_room.search_available': ['vc:room:readonly', 'calendar:calendar.free_busy:read'],
   'feishu_task_task.create': ['task:task:write', 'task:task:writeonly'],
   'feishu_task_task.get': ['task:task:read', 'task:task:write'],
   'feishu_task_task.list': ['task:task:read', 'task:task:write'],

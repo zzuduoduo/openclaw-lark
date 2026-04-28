@@ -18,7 +18,7 @@ This plugin provides comprehensive Lark/Feishu integration for OpenClaw, includi
 | 📄 Docs | Create, update, and read documents |
 | 📊 Base | Create/manage bases, tables, fields, records (CRUD, batch operations, advanced filtering), views |
 | 📈 Sheets | Create, edit, and view spreadsheets |
-| 📅 Calendar | Manage calendars and events (create/query/update/delete/search), manage attendees, check free/busy status |
+| 📅 Calendar | Manage calendars and events (create/query/update/delete/search), manage attendees, check free/busy status, search meeting rooms, and book rooms via event resources |
 | ✅ Tasks | Manage tasks (create/query/update/complete), manage task lists, subtasks, and comments |
 
 Additionally, the plugin supports:

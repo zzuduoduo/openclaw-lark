@@ -495,6 +495,13 @@ function normalizeEventListTimeFields(
   return events.map((item) => normalizeEventTimeFields(item) as Record<string, any>);
 }
 
+function resolveResourceBookingState(rsvpStatus: unknown): 'failed' | 'confirmed' | 'pending' | 'unknown' {
+  if (rsvpStatus === 'decline') return 'failed';
+  if (rsvpStatus === 'accept') return 'confirmed';
+  if (rsvpStatus === 'needs_action') return 'pending';
+  return 'unknown';
+}
+
 // ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
@@ -636,6 +643,7 @@ export function registerFeishuCalendarEventTool(api: OpenClawPluginApi): void {
 
               log.info(`allAttendees=${JSON.stringify(allAttendees)}`);
               let attendeeError: string | undefined;
+              let attendeeResponseAttendees: Array<Record<string, unknown>> = [];
 
               const operateId = p.user_open_id ?? p.attendees?.find((a) => a.type === 'user')?.id;
 
@@ -670,6 +678,7 @@ export function registerFeishuCalendarEventTool(api: OpenClawPluginApi): void {
                     { as: 'user' },
                   );
                   assertLarkOk(attendeeRes);
+                  attendeeResponseAttendees = (attendeeRes.data?.attendees ?? []) as Array<Record<string, unknown>>;
                   log.info(`attendee API response: ${JSON.stringify(attendeeRes.data)}`);
                 } catch (attendeeErr) {
                   attendeeError = formatLarkError(attendeeErr);
@@ -690,12 +699,47 @@ export function registerFeishuCalendarEventTool(api: OpenClawPluginApi): void {
                   }
                 : undefined;
 
+              const resourceAttendeesInput = allAttendees.filter((a) => a.type === 'resource');
+              const attendeeResponseResources = attendeeResponseAttendees.filter(
+                (item) => item?.room_id || item?.resource_id || item?.attendee_id,
+              );
+              const resourceAttendees = resourceAttendeesInput.map((resource, index) => {
+                const matched =
+                  attendeeResponseResources.find(
+                    (item) =>
+                      item?.room_id === resource.id || item?.resource_id === resource.id || item?.attendee_id === resource.id,
+                  ) ?? attendeeResponseResources[index];
+                const rsvpStatus = matched?.rsvp_status;
+                const bookingState = resolveResourceBookingState(rsvpStatus);
+                const failed = Boolean(attendeeError) || rsvpStatus === 'decline';
+
+                return {
+                  room_id: resource.id,
+                  status: failed ? 'failed' : 'success',
+                  booking_state: bookingState,
+                  rsvp_status: rsvpStatus,
+                  error: attendeeError || (rsvpStatus === 'decline' ? 'room booking declined' : undefined),
+                };
+              });
+              const resourceBookingStatus =
+                resourceAttendees.length === 0
+                  ? undefined
+                  : resourceAttendees.some((item) => item.status === 'failed')
+                    ? 'partial_success'
+                    : 'success';
+
               const result: any = {
                 event: safeEvent,
                 attendees: allAttendees.map((a) => ({
                   type: a.type,
                   id: a.id,
                 })),
+                ...(resourceAttendees.length > 0
+                  ? {
+                      resource_attendees: resourceAttendees,
+                      resource_booking_status: resourceBookingStatus,
+                    }
+                  : {}),
                 _debug: {
                   calendar_id: calendarId,
                   operate_id: operateId,
@@ -704,6 +748,7 @@ export function registerFeishuCalendarEventTool(api: OpenClawPluginApi): void {
                   end_input: p.end_time,
                   end_iso8601: unixTimestampToISO8601(endTs) ?? p.end_time,
                   attendees_count: allAttendees.length,
+                  resource_attendees_count: resourceAttendees.length,
                 },
               };
               if (attendeeError) {

@@ -139,6 +139,18 @@ const DmConfigSchema = z
   })
   .optional();
 
+const MeetingRoomWorkplaceSchema = z.object({
+  name: z.string(),
+  aliases: z.array(z.string()).optional(),
+  matchFields: z.array(z.string()).optional(),
+});
+
+const MeetingRoomsSchema = z
+  .object({
+    workplaces: z.array(MeetingRoomWorkplaceSchema).optional(),
+  })
+  .optional();
+
 // ---------------------------------------------------------------------------
 // Group schema
 // ---------------------------------------------------------------------------
@@ -202,6 +214,7 @@ export const FeishuAccountConfigSchema = z.object({
   reactionNotifications: ReactionNotificationModeSchema,
   threadSession: z.boolean().optional(),
   uat: UATConfigSchema,
+  meetingRooms: MeetingRoomsSchema,
 });
 
 // ---------------------------------------------------------------------------
