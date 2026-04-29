@@ -130,17 +130,37 @@ export function registerFeishuCalendarEventAttendeeTool(api: OpenClawPluginApi):
             // CREATE ATTENDEES
             // -----------------------------------------------------------------
             case 'create': {
-              if (!p.attendees || p.attendees.length === 0) {
-                return json({
-                  error: 'attendees is required and cannot be empty',
-                });
+              // Normalize attendees: accept Array or JSON string; normalize id field names.
+              let attendeesRaw: any = (p as any).attendees;
+              if (!Array.isArray(attendeesRaw) && typeof attendeesRaw === 'string') {
+                try {
+                  attendeesRaw = JSON.parse(attendeesRaw);
+                } catch (_e) {
+                  return json({ error: 'attendees must be an array or JSON string of an array' });
+                }
               }
 
+              if (!Array.isArray(attendeesRaw) || attendeesRaw.length === 0) {
+                return json({ error: 'attendees is required and cannot be empty' });
+              }
+
+              // Normalize individual items: support { id } or { attendee_id }
+              const normalizedAttendees = attendeesRaw.map((it: any) => {
+                if (!it) return it;
+                if (!it.attendee_id && it.id) {
+                  return { ...it, attendee_id: it.id };
+                }
+                if (!it.attendee_id && it.attendeeId) {
+                  return { ...it, attendee_id: it.attendeeId };
+                }
+                return it;
+              });
+
               log.info(
-                `create: calendar_id=${p.calendar_id}, event_id=${p.event_id}, attendees_count=${p.attendees.length}`,
+                `create: calendar_id=${p.calendar_id}, event_id=${p.event_id}, attendees_count=${normalizedAttendees.length}`,
               );
 
-              const attendeeData = p.attendees.map((a) => {
+              const attendeeData = normalizedAttendees.map((a: any) => {
                 const base: any = {
                   type: a.type,
                   is_optional: false,

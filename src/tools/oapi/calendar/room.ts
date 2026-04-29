@@ -573,6 +573,16 @@ export function registerFeishuCalendarRoomTool(api: OpenClawPluginApi): void {
             }
           }
         } catch (err) {
+          try {
+            // 记录尽可能多的原始错误信息，便于线上定位权限/返回码问题
+            log.error(`invoke failed: ${err instanceof Error ? err.message : String(err)}`);
+            // 有些 error 对象不可枚举，需要使用 getOwnPropertyNames 安全序列化
+            const serialized = typeof err === 'object' && err !== null ? JSON.stringify(err, Object.getOwnPropertyNames(err)) : String(err);
+            log.debug(`invoke raw error: ${serialized}`);
+          } catch (logErr) {
+            log.debug(`failed to serialize invoke error: ${logErr instanceof Error ? logErr.message : String(logErr)}`);
+          }
+
           return await handleInvokeErrorWithAutoAuth(err, cfg);
         }
       },

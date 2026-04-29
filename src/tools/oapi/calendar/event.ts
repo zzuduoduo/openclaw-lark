@@ -1120,6 +1120,14 @@ export function registerFeishuCalendarEventTool(api: OpenClawPluginApi): void {
             }
           }
         } catch (err) {
+          try {
+            log.error(`invoke failed: ${err instanceof Error ? err.message : String(err)}`);
+            const serialized = typeof err === 'object' && err !== null ? JSON.stringify(err, Object.getOwnPropertyNames(err)) : String(err);
+            log.debug(`invoke raw error: ${serialized}`);
+          } catch (logErr) {
+            log.debug(`failed to serialize invoke error: ${logErr instanceof Error ? logErr.message : String(logErr)}`);
+          }
+
           return await handleInvokeErrorWithAutoAuth(err, cfg);
         }
       },

@@ -285,14 +285,33 @@ export class ToolClient {
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async invokeByPath<T = any>(toolAction: ToolActionKey, path: string, options?: InvokeByPathOptions): Promise<T> {
-    const fn: InvokeFn<T> = async (_sdk, _opts, uat) => {
-      return this.rawRequest<T>(path, {
-        method: options?.method,
-        body: options?.body,
-        query: options?.query,
-        headers: options?.headers,
-        accessToken: uat,
-      });
+    const fn: InvokeFn<T> = async (sdk, _opts, uat) => {
+      // If a user access token is provided (UAT flow), prefer the raw request
+      // path that attaches the UAT as Authorization header. This keeps the
+      // behavior consistent with SDK calls that use Lark.withUserAccessToken.
+      if (uat) {
+        return this.rawRequest<T>(path, {
+          method: options?.method,
+          body: options?.body,
+          query: options?.query,
+          headers: options?.headers,
+          accessToken: uat,
+        });
+      }
+
+      // Tenant (app) flow: use the SDK's internal request method so that the
+      // SDK injects the application (TAT) credentials automatically.
+      // This avoids manual app-token fetching and ensures consistent auth.
+      const req: any = {
+        method: options?.method ?? 'GET',
+        url: path,
+        params: options?.query,
+      };
+      if (options?.body !== undefined) req.data = options.body;
+      if (options?.headers) req.headers = options.headers;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (sdk as any).request(req) as Promise<T>;
     };
     return this._invokeInternal(toolAction, fn, options);
   }
