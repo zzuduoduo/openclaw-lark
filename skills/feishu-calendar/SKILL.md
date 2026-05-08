@@ -2,6 +2,7 @@
 name: feishu-calendar
 description: |
   飞书日历与日程管理工具集。包含日历管理、日程管理、参会人管理、忙闲查询。
+  注意：会议室约定不使用该技能！！！！！！
 ---
 
 # 飞书日历管理 (feishu-calendar)
@@ -20,7 +21,6 @@ description: |
 
 | 用户意图 | 工具 | action | 必填参数 | 强烈建议 | 常用可选 |
 |---------|------|--------|---------|---------|---------|
-| 创建会议 | feishu_calendar_event | create | summary, start_time, end_time | user_open_id | attendees, description, location |
 | 查某时间段日程 | feishu_calendar_event | list | start_time, end_time | - | - |
 | 改日程时间 | feishu_calendar_event | patch | event_id, start_time/end_time | - | summary, description |
 | 搜关键词找会 | feishu_calendar_event | search | query | - | - |
