@@ -31,6 +31,30 @@ export interface LarkLogger {
 }
 
 // ---------------------------------------------------------------------------
+// Global API Logger Registry
+// ---------------------------------------------------------------------------
+// 当插件作为子模块部署到 orange 时，可以通过此函数注册 api.logger
+// 这样 larkLogger 就能使用框架提供的 logger，确保日志被正确捕获
+
+type ApiLogFunc = (message: string, ...args: unknown[]) => void;
+
+let globalApiLogger: {
+  debug?: ApiLogFunc;
+  info: ApiLogFunc;
+  warn: ApiLogFunc;
+  error: ApiLogFunc;
+} | null = null;
+
+/**
+ * 注册全局 API logger（由插件初始化时调用）
+ * 当注册后，larkLogger 将使用此 logger 而非 consoleFallback
+ */
+export function registerGlobalApiLogger(logger: typeof globalApiLogger): void {
+  globalApiLogger = logger;
+  console.log('[lark-logger] Global API logger registered');
+}
+
+// ---------------------------------------------------------------------------
 // Console fallback (with ANSI colors)
 // ---------------------------------------------------------------------------
 
@@ -45,10 +69,34 @@ function consoleFallback(subsystem: string): RuntimeLogger {
   const tag = `feishu/${subsystem}`;
   /* eslint-disable no-console -- logger底层实现，console 是最终输出目标 */
   return {
-    debug: (msg, meta) => console.debug(`${GRAY}[${tag}]${RESET}`, msg, ...(meta ? [meta] : [])),
-    info: (msg, meta) => console.log(`${CYAN}[${tag}]${RESET}`, msg, ...(meta ? [meta] : [])),
-    warn: (msg, meta) => console.warn(`${YELLOW}[${tag}]${RESET}`, msg, ...(meta ? [meta] : [])),
-    error: (msg, meta) => console.error(`${RED}[${tag}]${RESET}`, msg, ...(meta ? [meta] : [])),
+    debug: (msg, meta) => {
+      if (globalApiLogger?.debug) {
+        globalApiLogger.debug(`[${tag}] ${msg}`, meta);
+      } else {
+        console.debug(`${GRAY}[${tag}]${RESET}`, msg, ...(meta ? [meta] : []));
+      }
+    },
+    info: (msg, meta) => {
+      if (globalApiLogger?.info) {
+        globalApiLogger.info(`[${tag}] ${msg}`, meta);
+      } else {
+        console.log(`${CYAN}[${tag}]${RESET}`, msg, ...(meta ? [meta] : []));
+      }
+    },
+    warn: (msg, meta) => {
+      if (globalApiLogger?.warn) {
+        globalApiLogger.warn(`[${tag}] ${msg}`, meta);
+      } else {
+        console.warn(`${YELLOW}[${tag}]${RESET}`, msg, ...(meta ? [meta] : []));
+      }
+    },
+    error: (msg, meta) => {
+      if (globalApiLogger?.error) {
+        globalApiLogger.error(`[${tag}] ${msg}`, meta);
+      } else {
+        console.error(`${RED}[${tag}]${RESET}`, msg, ...(meta ? [meta] : []));
+      }
+    },
   };
   /* eslint-enable no-console */
 }

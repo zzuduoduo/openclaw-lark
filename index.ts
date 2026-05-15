@@ -17,6 +17,7 @@ import { registerFeishuMcpDocTools } from './src/tools/mcp/doc/index';
 import { registerFeishuOAuthTool } from './src/tools/oauth';
 import { registerFeishuOAuthBatchAuthTool } from './src/tools/oauth-batch-auth';
 import { registerAskUserQuestionTool } from './src/tools/ask-user-question';
+import { registerBusinessInteractiveHandlers } from './src/plugins/business-interactive-handler';
 import {
   analyzeTrace,
   formatDiagReportCli,
@@ -30,6 +31,8 @@ import { emitSecurityWarnings } from './src/core/security-check';
 import { recordToolUseEnd, recordToolUseStart } from './src/card/tool-use-trace-store';
 import { sanitizeParamsForLog } from './src/card/reasoning-utils';
 import { registerHttpTokenInjector } from './src/hook/http-token-injector';
+import { registerGlobalApiLogger } from './src/core/lark-logger';
+
 
 const log = larkLogger('plugin');
 
@@ -109,6 +112,13 @@ const plugin = {
   configSchema: emptyPluginConfigSchema(),
   register(api: OpenClawPluginApi): void {
     LarkClient.setRuntime(api.runtime);
+    // 注册全局 API logger，确保 larkLogger 能输出到 orange 框架的日志系统
+    registerGlobalApiLogger({
+      debug: api.logger.debug?.bind(api.logger),
+      info: api.logger.info.bind(api.logger),
+      warn: api.logger.warn?.bind(api.logger),
+      error: api.logger.error?.bind(api.logger),
+    });
     api.registerChannel({ plugin: feishuPlugin });
 
     // ========================================
@@ -127,6 +137,10 @@ const plugin = {
 
     // Register AskUserQuestion tool (interactive card-based user prompting)
     registerAskUserQuestionTool(api);
+
+    // Register business interactive handlers (order, payment, form submissions)
+    registerBusinessInteractiveHandlers(api);
+
 
     api.on('before_tool_call', (event, ctx) => {
       recordToolUseStart({

@@ -64,6 +64,7 @@ interface QuestionItem {
   header: string;
   options: Array<{ label: string; description: string }>;
   multiSelect: boolean;
+  required?: boolean; // 新增：是否必填，默认 true
 }
 
 /** Lightweight context stored while awaiting user response (no Promise / timeout). */
@@ -315,7 +316,8 @@ export function handleAskUserAction(data: unknown, _cfg: ClawdbotConfig, account
 
     if (answer) {
       answers[q.question] = answer;
-    } else {
+    } else if (q.required !== false) {
+      // 只有必填问题才报错，非必填的空答案可以正常提交
       unanswered.push(q.header);
     }
   }
@@ -572,6 +574,7 @@ function buildQuestionFormElements(q: QuestionItem, questionIndex: number): Reco
           content: '请输入...',
           i18n_content: { zh_cn: '请输入...', en_us: 'Type your answer...' },
         },
+        required: q.required !== false, // 默认必填，设置为 false 则非必填
       }),
     );
     return elems;
@@ -902,6 +905,13 @@ const AskUserQuestionSchema = Type.Object({
       multiSelect: Type.Boolean({
         description: 'Whether multiple options can be selected (ignored when options is empty)',
       }),
+      required: Type.Optional(
+        Type.Boolean({
+          description:
+            'Whether this question is required. Defaults to true. ' +
+            'Set to false to make a text input optional.',
+        }),
+      ),
     }),
     {
       description: 'Questions to ask the user (1-20 questions)',

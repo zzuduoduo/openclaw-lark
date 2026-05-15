@@ -428,7 +428,9 @@ export class LarkClient {
     const origHandleEventData = wsClientAny.handleEventData.bind(wsClientAny);
     wsClientAny.handleEventData = (data: any) => {
       const msgType = data.headers?.find?.((h: any) => h.key === 'type')?.value;
+      log.info(`[WS] handleEventData: type=${msgType}, data=${JSON.stringify(data).slice(0, 300)}`);
       if (msgType === 'card') {
+        log.info(`[WS] Patching card action to event type`);
         const patchedData = {
           ...data,
           headers: data.headers.map((h: any) => (h.key === 'type' ? { ...h, value: 'event' } : h)),

@@ -15,6 +15,10 @@ import { handleInvokeErrorWithAutoAuth } from '../oapi/helpers';
 import { getUserAgent } from '../../core/version';
 import { mcpDomain } from '../../core/domains';
 import type { LarkBrand } from '../../core/types';
+import { ProxyAgent } from 'undici';
+import { larkLogger } from '../../core/lark-logger';
+
+const log = larkLogger('tools/mcp/shared');
 
 // ---------------------------------------------------------------------------
 // 类型定义
@@ -150,6 +154,39 @@ function buildAuthHeader(): string | undefined {
 }
 
 // ---------------------------------------------------------------------------
+// Proxy support via environment variables
+// ---------------------------------------------------------------------------
+
+function getProxyUrl(): string | undefined {
+  return (
+    process.env.HTTPS_PROXY ||
+    process.env.https_proxy ||
+    process.env.HTTP_PROXY ||
+    process.env.http_proxy
+  );
+}
+
+function createProxyAgent(): ProxyAgent | undefined {
+  const proxyUrl = getProxyUrl();
+  if (!proxyUrl) return undefined;
+  try {
+    return new ProxyAgent(proxyUrl);
+  } catch {
+    log.warn(`[mcp] Failed to create proxy agent from: ${proxyUrl}`);
+    return undefined;
+  }
+}
+
+// Cache the proxy agent instance
+let _proxyAgent: ProxyAgent | undefined;
+function getProxyAgent(): ProxyAgent | undefined {
+  if (_proxyAgent === undefined) {
+    _proxyAgent = createProxyAgent();
+  }
+  return _proxyAgent;
+}
+
+// ---------------------------------------------------------------------------
 // MCP JSON-RPC 客户端
 // ---------------------------------------------------------------------------
 
@@ -189,11 +226,21 @@ export async function callMcpTool(
   };
   if (auth) headers.authorization = auth;
 
-  const res = await fetch(endpoint, {
+  // Use native fetch with proxy support (Node.js fetch is undici-based)
+  const agent = getProxyAgent();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fetchOptions: any = {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
-  });
+  };
+
+  if (agent) {
+    fetchOptions.dispatcher = agent;
+    log.info(`[mcp] Using proxy for MCP request: ${name}`);
+  }
+
+  const res = await fetch(endpoint, fetchOptions);
 
   const text = await res.text();
   if (!res.ok) {

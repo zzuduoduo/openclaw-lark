@@ -137,6 +137,72 @@ this._wsClient = new Lark.WSClient({
 });
 ```
 
+### 2. 修改 `shared.ts` 添加 MCP 代理支持
+
+#### 添加导入和代理辅助函数
+
+```typescript
+import { HttpsProxyAgent } from 'https-proxy-agent';
+import { larkLogger } from '../../core/lark-logger';
+
+const log = larkLogger('tools/mcp/shared');
+
+// ---------------------------------------------------------------------------
+// Proxy support via environment variables
+// ---------------------------------------------------------------------------
+
+function getProxyUrl(): string | undefined {
+  return (
+    process.env.HTTPS_PROXY ||
+    process.env.https_proxy ||
+    process.env.HTTP_PROXY ||
+    process.env.http_proxy
+  );
+}
+
+function createProxyAgent(): HttpsProxyAgent<string> | undefined {
+  const proxyUrl = getProxyUrl();
+  if (!proxyUrl) return undefined;
+  try {
+    return new HttpsProxyAgent(proxyUrl);
+  } catch {
+    log.warn(`[mcp] Failed to create proxy agent from: ${proxyUrl}`);
+    return undefined;
+  }
+}
+
+// Cache the proxy agent instance
+let _proxyAgent: ReturnType<typeof createProxyAgent> | undefined;
+function getProxyAgent(): ReturnType<typeof createProxyAgent> {
+  if (_proxyAgent === undefined) {
+    _proxyAgent = createProxyAgent();
+  }
+  return _proxyAgent;
+}
+```
+
+#### 修改 `callMcpTool` 函数使用 undici fetch
+
+```typescript
+// 替换原有的 fetch 调用
+// Use undici's fetch with proxy support
+const { fetch: undiciFetch } = await import('undici');
+const agent = getProxyAgent();
+
+const fetchOptions: RequestInit = {
+  method: 'POST',
+  headers,
+  body: JSON.stringify(body),
+  dispatcher: agent,
+};
+
+if (agent) {
+  log.info(`[mcp] Using proxy for MCP request: ${name}`);
+}
+
+const res = await undiciFetch(endpoint, fetchOptions);
+```
+
 ## 使用方式
 
 启动 Orange 前设置环境变量：
@@ -151,10 +217,11 @@ orange gateway restart
 ## 注意事项
 
 - `https-proxy-agent` 是 `openclaw` 包的间接依赖，已存在于 pnpm 依赖树，无需修改 `package.json`
+- `undici` 已在 `package.json` 依赖中，用于替代原生 fetch 支持代理
 - 必须设置 30s 超时避免请求无限挂起
 - 必须禁用 axios 内置代理（`proxy: false`, `env: {}`）避免重复处理导致请求失败
 - 若未设置代理环境变量，`createProxyAgent()` 返回 `undefined`，行为与原来完全一致
-- HTTP API 和 WebSocket 均走同一个代理地址（`HTTP_PROXY` 或 `HTTPS_PROXY`）
+- HTTP API、WebSocket 和 MCP 均走同一个代理地址（`HTTP_PROXY` 或 `HTTPS_PROXY`）
 
 ## gost 代理配置建议
 
@@ -171,3 +238,4 @@ gost -L http://:7890 -F forward://+tls:7891
 ## 修改时间
 
 2026-04-02
+2026-05-09 - 添加 MCP 工具代理支持

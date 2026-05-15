@@ -143,6 +143,65 @@ export interface FeishuBotAddedEvent {
   };
 }
 
+/**
+ * Event shape for `moments.post.created_v1`.
+ *
+ * Fired when a user posts a new moment in Feishu Moments.
+ * The SDK flattens the v2 envelope header into the handler `data` object,
+ * so `app_id` is available directly on the event.
+ *
+ * **Real event structure** (SDK-flattened):
+ * ```json
+ * {
+ *   "app_id": "cli_xxx",
+ *   "event": {
+ *     "id": "248381241",
+ *     "user_id": {
+ *       "open_id": "ou_xxx",
+ *       "user_id": "xxx",
+ *       "union_id": "on_xxx"
+ *     },
+ *     "create_time": "2022-05-23T00:00:00+08:00",
+ *     "category_ids": ["71123"],
+ *     "link": "https://applink.feishu.cn/client/moments/detail?postId=7254",
+ *     "user_type": 1
+ *   }
+ * }
+ * ```
+ *
+ * user_type values:
+ * - 1: Real name
+ * - 2: Nickname
+ * - 3: Anonymous
+ * - 4: Official Account
+ */
+export interface FeishuMomentsPostCreatedEvent {
+  /** App ID from the event envelope header. */
+  app_id?: string;
+  /** Post ID of the moment. */
+  id?: string;
+  /** User who posted the moment. */
+  user_id?: {
+    open_id?: string;
+    user_id?: string;
+    union_id?: string;
+  };
+  /** Post creation timestamp. */
+  create_time?: string;
+  /** Post category IDs. */
+  category_ids?: string[];
+  /** Link to the moment. */
+  link?: string;
+  /**
+   * Post user type:
+   * - 1: Real name
+   * - 2: Nickname
+   * - 3: Anonymous
+   * - 4: Official Account
+   */
+  user_type?: number;
+}
+
 // ---------------------------------------------------------------------------
 // Resource descriptor
 // ---------------------------------------------------------------------------

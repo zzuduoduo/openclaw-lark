@@ -9,7 +9,7 @@
  * dependencies needed to process the event.
  */
 
-import type { FeishuBotAddedEvent, FeishuMessageEvent, FeishuReactionCreatedEvent } from '../messaging/types';
+import type { FeishuBotAddedEvent, FeishuMessageEvent, FeishuMomentsPostCreatedEvent, FeishuReactionCreatedEvent } from '../messaging/types';
 import { handleFeishuMessage } from '../messaging/inbound/handler';
 import { handleFeishuReaction, resolveReactionContext } from '../messaging/inbound/reaction-handler';
 import { handleFeishuCommentEvent } from '../messaging/inbound/comment-handler';
@@ -305,15 +305,71 @@ export async function handleCardActionEvent(ctx: MonitorContext, data: unknown):
   try {
     // AskUserQuestion：表单卡片交互（宿主内建能力优先）
     const askResult = handleAskUserAction(data, ctx.cfg, ctx.accountId);
-    if (askResult !== undefined) return askResult;
+    if (askResult !== undefined) {
+      elog.info(`card.action.trigger: handled by AskUserQuestion`);
+      return askResult;
+    }
 
     // auto-auth：授权/权限引导相关卡片交互（宿主内建能力优先）
     const authResult = await handleCardAction(data, ctx.cfg, ctx.accountId);
-    if (authResult !== undefined) return authResult;
+    if (authResult !== undefined) {
+      elog.info(`card.action.trigger: handled by auto-auth`);
+      return authResult;
+    }
 
     // 业务自定义卡片交互：使用 SDK 标准 interactive dispatch 管道转发给业务插件。
+    elog.info(`card.action.trigger: forwarding to business plugin handler`);
     return await dispatchFeishuPluginInteractiveHandler({ cfg: ctx.cfg, accountId: ctx.accountId, data });
   } catch (err) {
     elog.warn(`card.action.trigger handler error: ${err}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Moments post created handler
+// ---------------------------------------------------------------------------
+
+export async function handleMomentsPostCreatedEvent(ctx: MonitorContext, data: unknown): Promise<void> {
+  if (!isEventOwnershipValid(ctx, data)) return;
+  const { accountId, log, error } = ctx;
+  try {
+    const event = data as FeishuMomentsPostCreatedEvent;
+    const postId = event.id ?? 'unknown';
+    const openId = event.user_id?.open_id;
+
+    if (!openId) {
+      log(`feishu[${accountId}]: moments post ${postId} has no open_id, skipping`);
+      return;
+    }
+
+    // Dedup: build a deterministic key from the post ID
+    const dedupKey = `moments:${postId}`;
+    if (!ctx.messageDedup.tryRecord(dedupKey, accountId)) {
+      log(`feishu[${accountId}]: duplicate moments post ${postId}, skipping`);
+      return;
+    }
+
+    // Expiry check: discard events older than 5 minutes
+    // if (event.create_time && isMessageExpired(event.create_time)) {
+    //   log(`feishu[${accountId}]: moments post ${postId} expired, discarding`);
+    //   return;
+    // }
+
+    log(`feishu[${accountId}]: received moments post event from ${openId} (postId=${postId})`);
+
+    // // Send a confirmation message to the post author
+    // try {
+    //   await sendMessageFeishu({
+    //     cfg: ctx.cfg,
+    //     to: openId,
+    //     text: '收到你的发帖啦！',
+    //     accountId,
+    //   });
+    //   log(`feishu[${accountId}]: sent confirmation to ${openId} for post ${postId}`);
+    // } catch (err) {
+    //   error(`feishu[${accountId}]: failed to send confirmation to ${openId}: ${String(err)}`);
+    // }
+  } catch (err) {
+    error(`feishu[${accountId}]: error handling moments post created event: ${String(err)}`);
   }
 }

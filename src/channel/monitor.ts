@@ -22,6 +22,7 @@ import {
   handleCardActionEvent,
   handleCommentEvent,
   handleMessageEvent,
+  handleMomentsPostCreatedEvent,
   handleReactionEvent,
 } from './event-handlers';
 
@@ -107,6 +108,8 @@ async function monitorSingleAccount(params: {
       'im.chat.member.bot.deleted_v1': (data) => handleBotMembershipEvent(ctx, data, 'removed'),
       // Drive comment event — fires when a user adds a comment or reply on a document.
       'drive.notice.comment_add_v1': (data) => handleCommentEvent(ctx, data),
+      // Moments post created event — fires when a user posts a new moment.
+      'moments.post.created_v1': (data) => handleMomentsPostCreatedEvent(ctx, data),
       // 飞书 SDK EventDispatcher.register 不支持带返回值的处理器，此处 as any 是 SDK 类型限制的变通
       'card.action.trigger': ((data: unknown) =>
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
