@@ -28,7 +28,7 @@ import type { LarkAccount } from '../../core/types';
 import { getMessageFeishu } from '../outbound/fetch';
 import type { PermissionError } from './permission';
 import { PERMISSION_ERROR_COOLDOWN_MS, permissionErrorNotifiedAt } from './permission';
-import { batchResolveUserNames, getUserNameCache, resolveUserName } from './user-name-cache';
+import { batchResolveUserNames, getUserInfoCache, getUserNameCache, resolveUserName } from './user-name-cache';
 import { buildFeishuMediaPayload, downloadResources } from './media-resolver';
 
 // ---------------------------------------------------------------------------
@@ -64,6 +64,7 @@ export async function resolveSenderInfo(params: {
   // Try cached name first (synchronous, fast)
   let senderName: string | undefined;
   const userNameCache = getUserNameCache(account.accountId);
+
   if (userNameCache.has(ctx.senderId)) {
     senderName = userNameCache.get(ctx.senderId);
     if (senderName) {
@@ -71,6 +72,21 @@ export async function resolveSenderInfo(params: {
       log(`sender resolved (cached): ${senderName}`);
     }
   } else {
+    // Cache miss: kick off async refresh in background (fire-and-forget)
+    // This prevents blocking on the API call (~2 seconds)
+    resolveUserNameAsync({
+      account,
+      openId: ctx.senderId,
+      log,
+    }).catch(() => {
+      // Silently ignore background errors
+    });
+  }
+  const userInfo = getUserInfoCache().get(ctx.senderId);
+  if(userInfo){
+    log(`user cache info for ${ctx.senderId}: name=${userInfo.name} email=${userInfo.email}`);
+  }
+  else {
     // Cache miss: kick off async refresh in background (fire-and-forget)
     // This prevents blocking on the API call (~2 seconds)
     resolveUserNameAsync({
