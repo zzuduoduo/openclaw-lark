@@ -402,9 +402,13 @@ export async function dispatchFeishuPluginInteractiveHandler(params: {
     });
 
     // Return immediate visual feedback via Feishu callback response
+    // Note: Feishu expects card wrapped as { type: "raw", data: {...} }
     return {
       toast: { type: 'success', content: '表单已提交，正在处理...' },
-      card: buildProcessingCard(formFields),
+      card: {
+        type: 'raw',
+        data: buildProcessingCard(formFields),
+      },
     };
   }
 

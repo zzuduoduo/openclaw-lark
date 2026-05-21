@@ -141,7 +141,16 @@ export async function resolveUserName(params: {
   if (!account.configured || !openId) return {};
 
   const cache = getUserNameCache(account.accountId);
-  if (cache.has(openId)) return { name: cache.get(openId) ?? '' };
+  const infoCache = getUserInfoCache();
+
+  // Always check userInfoCache - even if userNameCache has the name,
+  // we may not have the email/mobile yet (e.g., from older cache entries)
+  const hasUserInfo = infoCache.has(openId);
+
+  if (cache.has(openId) && hasUserInfo) {
+    // Both caches hit - use cached values
+    return { name: cache.get(openId) ?? '' };
+  }
 
   try {
     const client = LarkClient.fromAccount(account).sdk;
@@ -157,7 +166,7 @@ export async function resolveUserName(params: {
     // Cache even empty names to avoid repeated API calls for users
     // whose names we cannot resolve (e.g. due to permissions).
     cache.set(openId, name);
-    getUserInfoCache().set(openId, {
+    infoCache.set(openId, {
       name,
       email: user?.email || user?.enterprise_email || '',
       mobile: user?.mobile || '',

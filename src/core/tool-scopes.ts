@@ -312,7 +312,7 @@ export const TOOL_SCOPES: ToolScopeMapping = {
   ],
   'feishu_search_doc_wiki.search': ['search:docs:read'],
   'feishu_get_user.basic_batch': ['contact:user.basic_profile:readonly'],
-  'feishu_get_user.default': ['contact:contact.base:readonly', 'contact:user.base:readonly'],
+  'feishu_get_user.default': ['contact:contact.base:readonly', 'contact:user.base:readonly', 'contact:user.employee_id:readonly', 'contact:user.email:readonly'],
   'feishu_search_user.default': ['contact:user:search'],
   'feishu_create_doc.default': [
     'board:whiteboard:node:create',
