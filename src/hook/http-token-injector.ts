@@ -58,6 +58,10 @@ export function registerHttpTokenInjector(api: OpenClawPluginApi): void {
     const toolName: string = p.tool_name ?? '';
     const url: string = p.params?.url ?? '';
     const userId: string = p.user_id ?? '';
+    const channel: string = String(p.channel ?? '').trim().toLowerCase();
+    if (channel && channel !== 'feishu') {
+      return { action: 'continue' };
+    }
     const openId = userId.replace(/^feishu:/, '');
     apiLog.info(`[http-token-injector] hook triggered: tool=${toolName} user=${openId} url=${url}`);
     if (!openId) {
