@@ -10,9 +10,19 @@
  *
  * Ensures tasks targeting the same account+chat are executed serially.
  * Used by both websocket inbound messages and synthetic message paths.
+ *
+ * Each task is guarded by a per-task timeout.  If the task does not
+ * settle within DEFAULT_TASK_TIMEOUT_MS, the chain proceeds so a
+ * single stuck dispatch (e.g. a hung LLM call) cannot block all
+ * subsequent messages for the chat forever.
  */
 
 type QueueStatus = 'queued' | 'immediate';
+
+/** Per-task deadline — after this the queue proceeds even if the task
+ *  hasn't resolved.  10 minutes gives typical LLM + tool-call chains
+ *  enough headroom while preventing a permanent queue deadlock. */
+const DEFAULT_TASK_TIMEOUT_MS = 10 * 60 * 1000;
 
 export interface ActiveDispatcherEntry {
   abortCard: () => Promise<void>;
@@ -56,13 +66,57 @@ export function enqueueFeishuChatTask(params: {
   chatId: string;
   threadId?: string;
   task: () => Promise<void>;
+  /** Per-task deadline in ms.  After this the chain proceeds even if the
+   *  task hasn't resolved, preventing a stuck dispatch from blocking the
+   *  entire chat queue forever.  Default: 10 minutes. */
+  taskTimeoutMs?: number;
 }): { status: QueueStatus; promise: Promise<void> } {
-  const { accountId, chatId, threadId, task } = params;
+  const { accountId, chatId, threadId, task, taskTimeoutMs } = params;
   const key = buildQueueKey(accountId, chatId, threadId);
   const prev = chatQueues.get(key) ?? Promise.resolve();
   const status: QueueStatus = chatQueues.has(key) ? 'queued' : 'immediate';
 
-  const taskPromise = prev.then(task, task);
+  const timeout = taskTimeoutMs ?? DEFAULT_TASK_TIMEOUT_MS;
+
+  // Wrap the user-supplied task so it cannot hold the queue forever.
+  // Promise.race does NOT cancel the underlying task — the LLM call
+  // continues running — but it does let the Promise chain advance so
+  // new messages can be processed.
+  const guarded = (): Promise<void> => {
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        // The task is still running (likely a hung LLM call / network
+        // stall).  Resolve the queue slot so subsequent messages are
+        // not blocked, but leave the task running in the background
+        // so it can complete on its own.
+        reject(
+          new Error(
+            `chat-queue task timed out after ${timeout}ms for ${key}`,
+          ),
+        );
+      }, timeout);
+
+      task()
+        .then(
+          (result) => {
+            clearTimeout(timer);
+            resolve(result);
+          },
+          (err) => {
+            clearTimeout(timer);
+            reject(err);
+          },
+        )
+        .catch(() => {
+          // Defensive: should have been caught above, but guard
+          // against unhandled rejections.
+          clearTimeout(timer);
+          reject(new Error('chat-queue task threw unexpectedly'));
+        });
+    });
+  };
+
+  const taskPromise = prev.then(guarded, guarded);
   chatQueues.set(key, taskPromise);
 
   const cleanup = (): void => {
@@ -72,6 +126,10 @@ export function enqueueFeishuChatTask(params: {
   };
 
   taskPromise.then(cleanup, cleanup);
+
+  // Suppress unhandled rejection noise for timed-out tasks — the
+  // rejection was intentionally used to unblock the queue.
+  taskPromise.catch(() => {});
 
   return { status, promise: taskPromise };
 }
