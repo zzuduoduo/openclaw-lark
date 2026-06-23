@@ -71,49 +71,41 @@ export function enqueueFeishuChatTask(params: {
    *  entire chat queue forever.  Default: 10 minutes. */
   taskTimeoutMs?: number;
 }): { status: QueueStatus; promise: Promise<void> } {
-  const { accountId, chatId, threadId, task, taskTimeoutMs } = params;
+  const { accountId, chatId, threadId, task, taskTimeoutMs = DEFAULT_TASK_TIMEOUT_MS } = params;
   const key = buildQueueKey(accountId, chatId, threadId);
   const prev = chatQueues.get(key) ?? Promise.resolve();
   const status: QueueStatus = chatQueues.has(key) ? 'queued' : 'immediate';
 
-  const timeout = taskTimeoutMs ?? DEFAULT_TASK_TIMEOUT_MS;
+  const guarded = async (): Promise<void> => {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let timedOut = false;
 
-  // Wrap the user-supplied task so it cannot hold the queue forever.
-  // Promise.race does NOT cancel the underlying task — the LLM call
-  // continues running — but it does let the Promise chain advance so
-  // new messages can be processed.
-  const guarded = (): Promise<void> => {
-    return new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        // The task is still running (likely a hung LLM call / network
-        // stall).  Resolve the queue slot so subsequent messages are
-        // not blocked, but leave the task running in the background
-        // so it can complete on its own.
-        reject(
-          new Error(
-            `chat-queue task timed out after ${timeout}ms for ${key}`,
-          ),
-        );
-      }, timeout);
-
-      task()
-        .then(
-          (result) => {
-            clearTimeout(timer);
-            resolve(result);
-          },
-          (err) => {
-            clearTimeout(timer);
-            reject(err);
-          },
-        )
-        .catch(() => {
-          // Defensive: should have been caught above, but guard
-          // against unhandled rejections.
-          clearTimeout(timer);
-          reject(new Error('chat-queue task threw unexpectedly'));
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => {
+        timedOut = true;
+        const active = activeDispatchers.get(key);
+        active?.abortController?.abort();
+        active?.abortCard().catch(() => {
+          // Best-effort UI cleanup. The queue timeout must still release.
         });
+        reject(new Error(`chat-queue task timed out after ${taskTimeoutMs}ms for ${key}`));
+      }, taskTimeoutMs);
     });
+
+    const taskPromise = Promise.resolve().then(task);
+    taskPromise.catch(() => {
+      // The race below observes failures before timeout. If the timeout wins,
+      // keep late rejections from surfacing as unhandled noise.
+    });
+
+    try {
+      await Promise.race([taskPromise, timeoutPromise]);
+    } finally {
+      if (timeout) clearTimeout(timeout);
+      if (timedOut) {
+        unregisterActiveDispatcher(key);
+      }
+    }
   };
 
   const taskPromise = prev.then(guarded, guarded);

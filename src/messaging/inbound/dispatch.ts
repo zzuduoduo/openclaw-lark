@@ -53,6 +53,36 @@ import { mentionedBot } from './mention';
 import { resolveRespondToMentionAll } from './gate';
 
 const log = larkLogger('inbound/dispatch');
+const DISPATCH_TIMEOUT_MS = 9 * 60 * 1000;
+
+async function withDispatchTimeout<T>(params: {
+  promise: Promise<T>;
+  timeoutMs: number;
+  onTimeout: () => void | Promise<void>;
+  label: string;
+}): Promise<T> {
+  const { promise, timeoutMs, onTimeout, label } = params;
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+
+  promise.catch(() => {
+    // If the timeout wins the race, keep late failures observed.
+  });
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      Promise.resolve(onTimeout()).catch((err) => {
+        log.warn(`dispatch timeout cleanup failed for ${label}: ${String(err)}`);
+      });
+      reject(new Error(`Feishu dispatch timed out after ${timeoutMs}ms for ${label}`));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Internal: normal message dispatch
@@ -183,24 +213,35 @@ async function dispatchNormalMessage(
   log.info(`dispatching to agent (session=${effectiveSessionKey})`);
 
   try {
-    const { queuedFinal, counts } = await dc.core.channel.reply.dispatchReplyFromConfig({
-      ctx: ctxPayload,
-      cfg: dc.accountScopedCfg,
-      dispatcher,
-      replyOptions: {
-        ...replyOptions,
-        abortSignal: abortController.signal,
-        ...(skillFilter ? { skillFilter } : {}),
+    const { queuedFinal, counts } = await withDispatchTimeout({
+      label: `${dc.account.accountId}:${dc.ctx.chatId}:${dc.ctx.messageId}`,
+      timeoutMs: DISPATCH_TIMEOUT_MS,
+      onTimeout: async () => {
+        abortController.abort();
+        await abortCard();
       },
-    });
+      promise: (async () => {
+        const result = await dc.core.channel.reply.dispatchReplyFromConfig({
+          ctx: ctxPayload,
+          cfg: dc.accountScopedCfg,
+          dispatcher,
+          replyOptions: {
+            ...replyOptions,
+            abortSignal: abortController.signal,
+            ...(skillFilter ? { skillFilter } : {}),
+          },
+        });
 
-    // Wait for all enqueued deliver() calls in the SDK's sendChain to
-    // complete before marking the dispatch as done.  Without this,
-    // dispatchReplyFromConfig() may return while the final deliver() is
-    // still pending in the Promise chain, causing markFullyComplete() to
-    // block it and leaving completedText incomplete — which in turn makes
-    // the streaming card's final update show truncated content.
-    await dispatcher.waitForIdle();
+        // Wait for all enqueued deliver() calls in the SDK's sendChain to
+        // complete before marking the dispatch as done.  Without this,
+        // dispatchReplyFromConfig() may return while the final deliver() is
+        // still pending in the Promise chain, causing markFullyComplete() to
+        // block it and leaving completedText incomplete — which in turn makes
+        // the streaming card's final update show truncated content.
+        await dispatcher.waitForIdle();
+        return result;
+      })(),
+    });
 
     markFullyComplete();
     markDispatchIdle();
