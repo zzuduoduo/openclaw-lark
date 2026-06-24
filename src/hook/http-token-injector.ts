@@ -166,5 +166,9 @@ export function registerHttpTokenInjector(api: OpenClawPluginApi): void {
     return { action: 'modify', payload: modifiedPayload };
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  api.registerHook('before_tool_call', hookHandler as any, { name: 'http-token-injector', priority: 80 } as any);
+  api.registerHook('before_tool_call', hookHandler as any, {
+    name: 'http-token-injector',
+    priority: 80,
+    tool_names: ['http_get', 'http_post'],
+  } as any);
 }
