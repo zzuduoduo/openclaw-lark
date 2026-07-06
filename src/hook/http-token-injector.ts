@@ -141,10 +141,10 @@ export function registerHttpTokenInjector(api: OpenClawPluginApi): void {
 
     // Don't overwrite an existing Authorization header
     const existingHeaders = (p.params?.headers ?? {}) as Record<string, string>;
-    if (existingHeaders['Authorization'] || existingHeaders['authorization']) {
-      log.debug('Authorization already set, skipping injection');
-      return { action: 'continue' };
-    }
+    // if (existingHeaders['Authorization'] || existingHeaders['authorization']) {
+    //   log.debug('Authorization already set, skipping injection');
+    //   return { action: 'continue' };
+    // }
 
     const modifiedPayload = {
       ...p,
