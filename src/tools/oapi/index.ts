@@ -41,6 +41,7 @@ import { registerFeishuSheetsTools } from './sheets/index';
 // import { registerFeishuOkrTools } from "./okr/index";
 import { registerFeishuChatTools } from './chat/index';
 import { registerFeishuImTools as registerFeishuImUserTools } from './im/index';
+import { registerFeishuDirectoryTool } from './directory';
 
 export function registerOapiTools(api: OpenClawPluginApi): void {
   // Common tools
@@ -90,5 +91,8 @@ export function registerOapiTools(api: OpenClawPluginApi): void {
   // IM tools (bot identity)
   registerFeishuImBotTools(api);
 
-  api.logger.debug?.('Registered all OAPI tools (calendar, task, bitable, search, drive, wiki, sheets, im)');
+  // Directory (contacts + chats) for admin notification scope selection
+  registerFeishuDirectoryTool(api);
+
+  api.logger.debug?.('Registered all OAPI tools (calendar, task, bitable, search, drive, wiki, sheets, im, directory)');
 }
