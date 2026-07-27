@@ -18,7 +18,7 @@ import { LarkClient } from '../../core/lark-client';
 import { larkLogger } from '../../core/lark-logger';
 import { parseFeishuRouteTarget } from '../../core/targets';
 import { isCommentTarget } from '../../core/comment-target';
-import { sendCardLark, sendCommentReplyLark, sendMediaLark, sendTextLark } from './deliver';
+import { sendCardLark, sendCommentReplyLark, sendMediaLark, sendPostLark, sendTextLark } from './deliver';
 
 const log = larkLogger('outbound/outbound');
 
@@ -165,8 +165,8 @@ export const feishuOutbound: ChannelOutboundAdapter = {
 
   textChunkLimit: 15000,
 
-  sendText: async ({ cfg, to, text, accountId, replyToId, threadId }) => {
-    log.info(`sendText: target=${to}, textLength=${text.length}`);
+  sendText: async ({ cfg, to, text, accountId, replyToId, threadId, blocks }) => {
+    log.info(`sendText: target=${to}, textLength=${text.length}, hasBlocks=${!!blocks}`);
 
     // Comment thread routing — route replies through Drive comment API
     if (isCommentTarget(to)) {
@@ -176,6 +176,13 @@ export const feishuOutbound: ChannelOutboundAdapter = {
     }
 
     const ctx = resolveFeishuSendContext({ cfg, to, accountId, replyToId, threadId });
+
+    // If pre-built post content (blocks) is provided, use it directly.
+    if (blocks && typeof blocks === 'object' && Object.keys(blocks).length > 0) {
+      const result = await sendPostLark({ ...ctx, to: ctx.to, postContent: JSON.stringify(blocks) });
+      return { channel: 'feishu', ...result };
+    }
+
     const result = await sendTextLark({ ...ctx, to: ctx.to, text });
     return { channel: 'feishu', ...result };
   },

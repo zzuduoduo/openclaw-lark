@@ -194,6 +194,47 @@ function detectCardJson(text: string): Record<string, unknown> | undefined {
 }
 
 // ---------------------------------------------------------------------------
+// sendPostLark
+// ---------------------------------------------------------------------------
+
+/**
+ * Parameters for sending a pre-built post (rich text) message via Feishu.
+ */
+export interface SendPostLarkParams {
+  /** Plugin configuration. */
+  cfg: ClawdbotConfig;
+  /** Target identifier (chat_id, open_id, or user_id). */
+  to: string;
+  /** Pre-built Feishu post content JSON string, e.g. `{"zh_cn":{"content":[[{"tag":"text","text":"hi"}]]}}`. */
+  postContent: string;
+  /** When set, the message is sent as a threaded reply. */
+  replyToMessageId?: string;
+  /** When true, the reply appears in the thread instead of main chat. */
+  replyInThread?: boolean;
+  /** Optional account identifier for multi-account setups. */
+  accountId?: string;
+}
+
+/**
+ * Send a pre-built Feishu post (rich text) message.
+ *
+ * Unlike {@link sendTextLark} which wraps plain text in a markdown block,
+ * this function sends the provided post content JSON directly to Feishu
+ * without any preprocessing or wrapping.
+ *
+ * @param params - See {@link SendPostLarkParams}.
+ * @returns The message ID and chat ID.
+ */
+export async function sendPostLark(params: SendPostLarkParams): Promise<FeishuSendResult> {
+  const { cfg, to, postContent, replyToMessageId, replyInThread, accountId } = params;
+
+  log.info(`sendPostLark: target=${to}, contentLength=${postContent.length}`);
+  const client = LarkClient.fromCfg(cfg, accountId).sdk;
+
+  return sendImMessage({ client, to, content: postContent, msgType: 'post', replyToMessageId, replyInThread });
+}
+
+// ---------------------------------------------------------------------------
 // sendTextLark
 // ---------------------------------------------------------------------------
 
