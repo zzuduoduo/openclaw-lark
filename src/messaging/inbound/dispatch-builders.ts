@@ -112,6 +112,8 @@ export function buildInboundPayload(
     originatingTo?: string;
     senderName: string;
     senderId: string;
+    /** Pinyin / LDAP account name (email local part), used for per-user billing. */
+    senderUsername?: string;
     messageSid: string;
     wasMentioned: boolean;
     replyToBody?: string;
@@ -134,6 +136,7 @@ export function buildInboundPayload(
     GroupSubject: dc.isGroup ? dc.ctx.chatId : undefined,
     SenderName: opts.senderName,
     SenderId: opts.senderId,
+    SenderUsername: opts.senderUsername,
     Provider: 'feishu' as const,
     Surface: 'feishu' as const,
     MessageSid: opts.messageSid,

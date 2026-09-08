@@ -50,6 +50,7 @@ import {
 import { type DispatchContext, buildDispatchContext, resolveThreadSessionKey } from './dispatch-context';
 import type { PermissionError } from './permission';
 import { mentionedBot } from './mention';
+import { getUserInfoCache, ldapFromEmail } from './user-name-cache';
 import { resolveRespondToMentionAll } from './gate';
 
 const log = larkLogger('inbound/dispatch');
@@ -386,6 +387,9 @@ export async function dispatchToAgent(params: {
     commandBody: params.ctx.content,
     originatingTo,
     senderName: params.ctx.senderName ?? params.ctx.senderId,
+    // Pinyin / LDAP name (email local part) — lets orange bill the call to the
+    // right person without calling the Feishu contact API itself.
+    senderUsername: ldapFromEmail(getUserInfoCache().get(params.ctx.senderId)?.email),
     senderId: params.ctx.senderId,
     messageSid: params.ctx.messageId,
     wasMentioned:

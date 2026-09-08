@@ -20,6 +20,25 @@ import { type PermissionError, extractPermissionError } from './permission';
 export { UserNameCache, clearUserNameCache, getUserNameCache, getUserInfoCache } from './user-name-cache-store';
 
 // ---------------------------------------------------------------------------
+// LDAP / pinyin account name
+// ---------------------------------------------------------------------------
+
+/**
+ * Derive the pinyin / LDAP account name from a Feishu email:
+ * `chenmaoming@corp.com` → `chenmaoming`.
+ *
+ * Same rule as `hook/http-token-injector.ts` (email local part). That local
+ * part is what the model gateway expects as `user`, so it is handed to the
+ * agent as `SenderUsername` — mirroring what `openclaw-channel` already does
+ * for OpenIM. Orange then uses it directly and never has to call the Feishu
+ * contact API itself (which needs a proxy in some deployments).
+ */
+export function ldapFromEmail(email?: string): string | undefined {
+  const local = email?.split('@')[0]?.trim();
+  return local ? local : undefined;
+}
+
+// ---------------------------------------------------------------------------
 // Batch resolve via contact/v3/users/batch
 // ---------------------------------------------------------------------------
 
